@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/tieubaoca/go-chat-server/dto"
+	"github.com/tieubaoca/go-chat-server/dto/request"
+	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/saconstant"
 	"github.com/tieubaoca/go-chat-server/services"
@@ -27,15 +28,15 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	dto.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
 }
 
 func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
-	var pagination dto.MessagePaginationReq
+	var pagination request.MessagePaginationReq
 	err := json.NewDecoder(r.Body).Decode(&pagination)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		dto.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, saconstant.StatusError, nil, err.Error())
 	}
 	messages, err := services.PaginationMessagesByChatRoomId(
 		pagination.ChatRoomId,
@@ -47,7 +48,7 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	dto.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
 }
 
 func InsertMessage(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +56,7 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&message)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		dto.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, saconstant.StatusError, nil, err.Error())
 		return
 	}
 	result, err := services.InsertMessage(bson.M{
@@ -66,8 +67,8 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		dto.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, saconstant.StatusError, nil, err.Error())
 		return
 	}
-	dto.Res(w, saconstant.StatusSuccess, result, "Insert message successfully")
+	response.Res(w, saconstant.StatusSuccess, result, "Insert message successfully")
 }

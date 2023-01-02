@@ -1,4 +1,4 @@
-package dto
+package request
 
 type GetAccessTokenReq struct {
 	Username string `json:"username"`

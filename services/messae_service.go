@@ -12,11 +12,8 @@ import (
 
 func FindMessagesByChatRoomId(chatRoomId string) ([]models.Message, error) {
 	coll := db.Collection("message")
-	ojId, err := primitive.ObjectIDFromHex(chatRoomId)
-	if err != nil {
-		return nil, err
-	}
-	result, err := coll.Find(context.TODO(), bson.D{{"chatRoom", ojId}})
+
+	result, err := coll.Find(context.TODO(), bson.D{{"chat_room", chatRoomId}})
 	if err != nil {
 		return nil, err
 	}

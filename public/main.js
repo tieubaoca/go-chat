@@ -1,13 +1,17 @@
 let ws;
 let receiver;
+let username;
+const host = "http://localhost:8800";
 
 async function main() {
   const root = document.querySelector("#root");
-  let res = await fetch("http://localhost:8800/api/auth", {
+  let res = await fetch(host + "/saas/api/auth", {
     method: "POST",
   });
   if (res.status === 200) {
-    root.innerHTML = ChapApp();
+    username = (await res.json()).data;
+    console.log(username);
+    renderChatApp();
     await renderUserList();
   } else {
     root.innerHTML = loginForm();
@@ -15,7 +19,7 @@ async function main() {
       .querySelector(".login__submit")
       .addEventListener("click", async (e) => {
         e.preventDefault();
-        let res = await fetch("http://localhost:8800/api/get-access-token", {
+        let res = await fetch(host + "/saas/api/get-access-token", {
           method: "POST",
           body: JSON.stringify({
             username: document.querySelector("#username").value,
@@ -31,110 +35,119 @@ async function main() {
 
 main();
 
-function ChapApp(props) {
-  ws = new WebSocket("ws://localhost:8800/api/ws");
+function renderChatApp(props) {
+  ws = new WebSocket("ws://localhost:8800/saas/api/ws");
   ws.onmessage = (e) => {
     const message = JSON.parse(e.data);
     console.log(message);
-  };
-  const sendMessage = async (e) => {
-    let chatRoomId;
-    e.preventDefault();
-    e.stopPropagation();
-    const msg = document.getElementById("msg").value;
-    const to = document.getElementById("to").value;
-    let chatroom = await (
-      await fetch(
-        "http://localhost:8800/api/chat-room/members?member1=" +
-          username +
-          "&member2=" +
-          to
-      )
-    ).json();
-    console.log(chatroom);
-    if (chatroom.member == null) {
-      let result = await fetch("http://localhost:8800/api/chat-room", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "Chatroom" + username + to,
-          member: [username, to],
-        }),
-      });
-      chatRoomId = (await result.json()).InsertedID;
-    } else {
-      chatRoomId = chatroom.id;
+    if (message.eventType === "Message") {
+      if (message.sender == username) {
+        renderMyMessage(message.eventPayload);
+      } else {
+        renderOtherMessage(message.eventPayload);
+      }
     }
-    console.log(chatRoomId);
-    const message = {
-      chatRoom: chatRoomId,
-      sender: username,
-      content: msg,
-    };
-    ws.send(JSON.stringify(message));
-    document.getElementById("msg").value = "";
-    document.getElementById("to").value = "";
   };
 
-  return `
-    <div class="container">
-      <div class="chat">
-        <div class="row clearfix">
-          <div class="col-lg-12">
-            <div class="card chat-app">
-              <div id="plist" class="people-list">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">
-                      <i class="fa fa-search"></i>
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    class="form-control"
-                    placeholder="Search..."
-                  />
-                </div>
-                <ul class="list-unstyled chat-list mt-2 mb-0">
-                
-                </ul>
-              </div>
-              <div class="chat">
-                <div class="chat-header clearfix">
-                  
-                </div>
-                <div class="chat-history">
-                  <ul class="message-list m-b-0">
-                    
-                  </ul>
-                </div>
-                <div class="chat-message clearfix">
-                  <div class="input-group mb-0">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text">
-                        <i class="fa fa-send"></i>
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      class="form-control"
-                      placeholder="Enter text here..."
-                    />
-                  </div>
-                </div>
-              </div>
+  let chatApp = document.createElement("div");
+  chatApp.className = "container";
+  chatApp.innerHTML = `
+  <div class="chat">
+  <div class="row clearfix">
+    <div class="col-lg-12">
+      <div class="card chat-app">
+        <div id="plist" class="people-list">
+          <div class="input-group">
+            <div class="input-group-prepend">
+              <span class="input-group-text">
+                <i class="fa fa-search"></i>
+              </span>
+            </div>
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Search..."
+            />
+          </div>
+          <ul class="list-unstyled chat-list mt-2 mb-0">
+          
+          </ul>
+        </div>
+        <div class="chat">
+          <div class="chat-header clearfix">
+            
+          </div>
+          <div class="chat-history">
+            <ul class="message-list m-b-0">
+              
+            </ul>
+          </div>
+          <div class="chat-message clearfix">
+            <div class="input-group mb-0">
+              <button id="submit" class="btn input-group-prepend">
+                <span class="input-group-text">
+                  <i class="fa fa-send"></i>
+                </span>
+              </button>
+              <input
+                id="message"
+                type="text"
+                class="form-control"
+                placeholder="Enter text here..."
+              />
             </div>
           </div>
         </div>
       </div>
     </div>
+  </div>
+</div>
   `;
+  chatApp.querySelector("#submit").addEventListener("click", async (e) => {
+    let chatRoomId;
+    e.preventDefault();
+    e.stopPropagation();
+    const msg = document.getElementById("message").value;
+    let res = await (
+      await fetch(host + "/saas/api/chat-room/dm/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(receiver),
+      })
+    ).json();
+    let chatRoom = res.data;
+    console.log(chatRoom);
+    if (chatRoom.members == null) {
+      let result = await fetch(host + "/saas/api/chat-room/dm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(receiver),
+      });
+      chatRoomId = (await result.json()).data.InsertedID;
+    } else {
+      chatRoomId = chatRoom.id;
+    }
+    console.log(chatRoomId);
+    const message = {
+      eventType: "Message",
+      eventPayload: {
+        chatroom: chatRoomId,
+        content: msg,
+      },
+    };
+    ws.send(JSON.stringify(message));
+  });
+
+  document.querySelector("#root").appendChild(chatApp);
 }
 
-function myMessage(msg) {
-  return `
+function renderMyMessage(msg) {
+  document.querySelector(".message-list").innerHTML += `
+  
     <li class="clearfix">
       <div class="message-data text-left">
         <span class="message-data-time">10:16 AM, Today</span>
@@ -147,11 +160,12 @@ function myMessage(msg) {
         ${msg.content}
       </div>
     </li>
+  
   `;
 }
 
-function otherMessage(msg) {
-  return `
+function renderOtherMessage(msg) {
+  document.querySelector(".message-list").innerHTML += `
     <li class="clearfix">
       <div class="message-data text-left">
         <span class="message-data-time">10:10 AM, Today</span>
@@ -196,31 +210,34 @@ function loginForm() {
 }
 
 async function renderUserList() {
-  let res = await fetch("http://localhost:8800/api/user/online");
+  let res = await fetch(host + "/saas/api/user/online");
   body = await res.json();
   console.log(body);
   let result = "";
   document.querySelector(".chat-list").innerHTML = "";
   for (let i = 0; i < body.data.length; i++) {
+    if (body.data[i] == username) {
+      continue;
+    }
     let user = document.createElement("li");
     user.classList.add("user", "clearfix");
     user.innerHTML = `
     <div class="about">
-    <div class="name">${body.data[i].username}</div>
+    <div class="name">${body.data[i]}</div>
     <div class="status">
       <i class="fa fa-circle online"></i> online
     </div>
   </div>
   `;
     user.addEventListener("click", async () => {
-      renderChatHeader(body.data[i].username);
+      renderChatHeader(body.data[i]);
     });
     document.querySelector(".chat-list").appendChild(user);
   }
 }
 
-function renderChatHeader(username) {
-  receiver = username;
+function renderChatHeader(_receiver) {
+  receiver = _receiver;
   document.querySelector(".chat-header").innerHTML = `
   <div class="chat-message clearfix">
                     <div class="col-lg-6">
@@ -235,23 +252,44 @@ function renderChatHeader(username) {
                         />
                       </a>
                       <div class="chat-about">
-                        <h6 class="m-b-0">${username}</h6>
+                        <h6 class="m-b-0">${_receiver}</h6>
                       </div>
                     </div>
                   </div>
   `;
 }
 
-async function renderMessages() {
-  let res = fetch("http://localhost:8800/api/message/pagination", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chatRoomId: "",
-      limit: 10,
-      skip: 0,
-    }),
-  });
+async function renderChatHistory(chatroom) {
+  let res = await fetch(host + "/saas/api/message/chat-room/" + chatroom);
+  body = await res.json();
+  for (let i = 0; i < body.data; i++) {
+    if (body.data[i].sender == username) {
+      renderMyMessage(body.data[i]);
+    } else {
+      renderOtherMessage(body.data[i]);
+    }
+  }
 }
+
+// async function renderMessages() {
+//   let res = await fetch("http://localhost:8800/api/chat-room/members", {
+//     method: "POST",
+//     headers: {
+
+//       "Content-Type": "application/json",
+//     }
+//     body: JSON.stringify({[""]})
+//   })
+
+//   res =await fetch("http://localhost:8800/api/message/pagination", {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//     },
+//     body: JSON.stringify({
+//       chatRoomId: "",
+//       limit: 10,
+//       skip: 0,
+//     }),
+//   });
+// }

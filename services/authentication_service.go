@@ -25,7 +25,7 @@ func Parse(tokenString string) (*jwt.Token, error) {
 	return token, nil
 }
 
-func GetAccessToken(username string, password string) (string, error) {
+func GetAccessToken(username string, password string) (string, string, error) {
 	req := http.Request{
 		Method: "POST",
 		URL: &url.URL{
@@ -49,25 +49,26 @@ func GetAccessToken(username string, password string) (string, error) {
 	resp, err := client.Do(&req)
 	if err != nil {
 		log.Println(err)
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	var body map[string]interface{}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
-		return "", err
+		return "", "", err
 	}
 	err = json.Unmarshal(bodyBytes, &body)
 	if err != nil {
 		log.Println(err)
-		return "", err
+		return "", "", err
 	}
 	accessToken, ok := body["access_token"]
+	refreshToken, _ := body["access_token"]
 	if !ok {
 		log.Println("No access token")
-		return "", nil
+		return "", "", nil
 	}
-	return accessToken.(string), nil
+	return accessToken.(string), refreshToken.(string), nil
 
 }

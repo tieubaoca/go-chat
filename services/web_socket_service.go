@@ -3,51 +3,77 @@ package services
 import (
 	"log"
 	"net/http"
+	"syscall"
+
+	"github.com/tieubaoca/go-chat-server/saconstant"
+	"github.com/tieubaoca/go-chat-server/types"
 
 	"github.com/gorilla/websocket"
-	"github.com/tieubaoca/go-chat-server/models"
+	"github.com/tieubaoca/go-chat-server/dto/response"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-var wsClients map[string][]*websocket.Conn
+var wsClients map[string]map[string]*types.WebSocketClient
 var upgrader websocket.Upgrader
-var broadcast chan models.Message
+var broadcast chan response.WebSocketResponse
 
+// / InitWebSocket initializes the websocket server
 func InitWebSocket() {
-	wsClients = make(map[string][]*websocket.Conn)
+	// Increase the maximum number of open files
+	var rLimit syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
+		panic(err)
+	}
+	rLimit.Cur = rLimit.Max
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
+		panic(err)
+	}
+	// Init websocket client map
+	wsClients = make(map[string]map[string]*types.WebSocketClient)
+	// Init websocket upgrader
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
+		Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
+			log.Println("Websocket error: ", reason)
+			response.Res(w, saconstant.StatusError, nil, reason.Error())
+		},
 	}
-	broadcast = make(chan models.Message)
-	go handleMessage()
+	broadcast = make(chan response.WebSocketResponse)
+
+	go handleWebSocketResponse()
 }
 
-func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string) {
+// / HandleWebSocket handles the websocket connection
+func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string, sessionId string) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer ws.Close()
-	// wsClients[username] = ws
+
 	if _, ok := wsClients[username]; !ok {
-		wsClients[username] = []*websocket.Conn{}
+		wsClients[username] = make(map[string]*types.WebSocketClient)
 	}
 	log.Println("Add new client: ", username)
-	wsClients[username] = append(wsClients[username], ws)
+	client := &types.WebSocketClient{
+		Username: username,
+		Conn:     ws,
+	}
+	wsClients[username][sessionId] = client
 	for {
-		var msg models.Message
+		ws.WriteJSON(response.WebSocketResponse{
+			EventType:    "Connected",
+			EventPayload: username,
+		})
+		var msg response.WebSocketResponse
 		err := ws.ReadJSON(&msg)
 		if err != nil {
 			log.Printf("error: %v", err)
-			for i, c := range wsClients[username] {
-				if c == ws {
-					wsClients[username] = append(wsClients[username][:i], wsClients[username][i+1:]...)
-					break
-				}
-			}
+			client.Close()
+			delete(wsClients[username], sessionId)
 			break
 		}
 		msg.Sender = username
@@ -56,36 +82,54 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string) {
 	}
 }
 
-func handleMessage() {
+func handleWebSocketResponse() {
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
-		// Send it out to every client that is currently connected
-		chatRoom, err := FindChatroomById(msg.Chatroom)
-		if err != nil {
-			log.Println(err)
+		switch msg.EventType {
+		case "Message":
+			handleMessage(msg)
 		}
-		_, err = InsertMessage(bson.M{
-			"chat_room": msg.Chatroom,
-			"sender":    msg.Sender,
-			"content":   msg.Content,
-		})
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		for _, member := range chatRoom.Members {
-			if wss, ok := wsClients[member]; ok {
-				for _, ws := range wss {
-					err := ws.WriteJSON(msg)
-					if err != nil {
-						log.Printf("error: %v", err)
-						ws.Close()
-						delete(wsClients, member)
-					}
-				}
+	}
+}
 
+func handleMessage(event response.WebSocketResponse) {
+	msg := event.EventPayload.(map[string]interface{})
+	// Send it out to every client that is currently connected
+	chatRoom, err := FindChatroomById(msg["chatroom"].(string))
+	if err != nil {
+		log.Println(err)
+	}
+	_, err = InsertMessage(bson.M{
+		"chat_room": msg["chatroom"].(string),
+		"sender":    event.Sender,
+		"content":   msg["content"].(string),
+	})
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	for _, member := range chatRoom.Members {
+		if wss, ok := wsClients[member]; ok {
+			for sessionId, ws := range wss {
+				err := ws.Conn.WriteJSON(event)
+				if err != nil {
+					log.Printf("error: %v", err)
+					ws.Close()
+					delete(wsClients[member], sessionId)
+				}
 			}
+
+		}
+	}
+}
+
+func Logout(username string, sessionId string) {
+	if _, ok := wsClients[username]; ok {
+		ws, ok := wsClients[username][sessionId]
+		if ok {
+			ws.Close()
+			delete(wsClients[username], sessionId)
 		}
 	}
 }
