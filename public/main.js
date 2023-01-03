@@ -127,11 +127,15 @@ function renderChatApp(props) {
         },
         body: JSON.stringify(receiver),
       });
-      chatRoomId = (await result.json()).data.InsertedID;
+      chatRoomId = (await result.json()).data?.InsertedID;
     } else {
       chatRoomId = chatRoom.id;
     }
     console.log(chatRoomId);
+    if (chatRoomId == null) {
+      alert("Error");
+      return;
+    }
     const message = {
       eventType: "Message",
       eventPayload: {
