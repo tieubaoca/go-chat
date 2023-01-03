@@ -1,6 +1,7 @@
 let ws;
 let receiver;
 let username;
+let currentChatRoom;
 const host = "http://localhost:8800";
 
 async function main() {
@@ -40,11 +41,13 @@ function renderChatApp(props) {
   ws.onmessage = (e) => {
     const message = JSON.parse(e.data);
     console.log(message);
-    if (message.eventType === "Message") {
-      if (message.sender == username) {
-        renderMyMessage(message.eventPayload);
-      } else {
-        renderOtherMessage(message.eventPayload);
+    if (message.eventPayload.chatroom == currentChatRoom) {
+      if (message.eventType === "Message") {
+        if (message.sender == username) {
+          renderMyMessage(message.eventPayload);
+        } else {
+          renderOtherMessage(message.eventPayload);
+        }
       }
     }
   };
@@ -104,48 +107,24 @@ function renderChatApp(props) {
 </div>
   `;
   chatApp.querySelector("#submit").addEventListener("click", async (e) => {
-    let chatRoomId;
     e.preventDefault();
     e.stopPropagation();
+
     const msg = document.getElementById("message").value;
-    let res = await (
-      await fetch(host + "/saas/api/chat-room/dm/members", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(receiver),
-      })
-    ).json();
-    let chatRoom = res.data;
-    console.log(chatRoom);
-    if (chatRoom == null) {
-      let result = await fetch(host + "/saas/api/chat-room/dm", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(receiver),
-      });
-      chatRoomId = (await result.json()).data?.InsertedID;
-    } else {
-      chatRoomId = chatRoom.id;
-    }
-    console.log(chatRoomId);
-    if (chatRoomId == null) {
+    if (currentChatRoom == null) {
       alert("Error");
       return;
     }
     const message = {
       eventType: "Message",
       eventPayload: {
-        chatroom: chatRoomId,
+        chatroom: currentChatRoom,
         content: msg,
       },
     };
     ws.send(JSON.stringify(message));
+    document.getElementById("message").value = "";
   });
-
   document.querySelector("#root").appendChild(chatApp);
 }
 
@@ -153,13 +132,6 @@ function renderMyMessage(msg) {
   document.querySelector(".message-list").innerHTML += `
   
     <li class="clearfix">
-      <div class="message-data text-left">
-        <span class="message-data-time">10:16 AM, Today</span>
-        <img
-          src="https://bootdey.com/img/Content/avatar/avatar7.png"
-          alt="avatar"
-        />
-      </div>
       <div class="message my-message float-right">
         ${msg.content}
       </div>
@@ -171,13 +143,6 @@ function renderMyMessage(msg) {
 function renderOtherMessage(msg) {
   document.querySelector(".message-list").innerHTML += `
     <li class="clearfix">
-      <div class="message-data text-left">
-        <span class="message-data-time">10:10 AM, Today</span>
-        <img
-          src="https://bootdey.com/img/Content/avatar/avatar7.png"
-          alt="avatar"
-        />
-      </div>
       <div class="message other-message float-left">
         ${msg.content}
       </div>
@@ -217,7 +182,6 @@ async function renderUserList() {
   let res = await fetch(host + "/saas/api/user/online");
   body = await res.json();
   console.log(body);
-  let result = "";
   document.querySelector(".chat-list").innerHTML = "";
   for (let i = 0; i < body.data.length; i++) {
     if (body.data[i] == username) {
@@ -234,14 +198,41 @@ async function renderUserList() {
   </div>
   `;
     user.addEventListener("click", async () => {
-      renderChatHeader(body.data[i]);
+      await renderChat(body.data[i]);
     });
     document.querySelector(".chat-list").appendChild(user);
   }
 }
 
-function renderChatHeader(_receiver) {
+async function renderChat(_receiver) {
   receiver = _receiver;
+  let res = await (
+    await fetch(host + "/saas/api/chat-room/dm/members", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(receiver),
+    })
+  ).json();
+  let chatRoom = res.data;
+  console.log(chatRoom);
+  if (chatRoom == null) {
+    let result = await fetch(host + "/saas/api/chat-room/dm", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(receiver),
+    });
+    currentChatRoom = (await result.json()).data?.InsertedID;
+  } else {
+    currentChatRoom = chatRoom.id;
+  }
+  console.log(currentChatRoom);
+
+  await renderChatHistory(currentChatRoom);
+
   document.querySelector(".chat-header").innerHTML = `
   <div class="chat-message clearfix">
                     <div class="col-lg-6">
@@ -266,7 +257,8 @@ function renderChatHeader(_receiver) {
 async function renderChatHistory(chatroom) {
   let res = await fetch(host + "/saas/api/message/chat-room/" + chatroom);
   body = await res.json();
-  for (let i = 0; i < body.data; i++) {
+  for (let i = 0; i < body.data.length; i++) {
+    console.log(body.data[i]);
     if (body.data[i].sender == username) {
       renderMyMessage(body.data[i]);
     } else {

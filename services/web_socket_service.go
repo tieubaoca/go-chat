@@ -48,6 +48,12 @@ func InitWebSocket() {
 
 // / HandleWebSocket handles the websocket connection
 func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string, sessionId string) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
@@ -85,6 +91,12 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string, se
 }
 
 func handleWebSocketResponse() {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
@@ -109,9 +121,9 @@ func handleMessage(event response.WebSocketResponse) {
 		log.Println(err)
 	}
 	_, err = InsertMessage(bson.M{
-		"chat_room": msg["chatroom"].(string),
-		"sender":    event.Sender,
-		"content":   msg["content"].(string),
+		"chatroom": msg["chatroom"].(string),
+		"sender":   event.Sender,
+		"content":  msg["content"].(string),
 	})
 	if err != nil {
 		log.Println(err)

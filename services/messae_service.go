@@ -20,7 +20,7 @@ func FindMessagesByChatRoomId(chatRoomId string) ([]models.Message, error) {
 	}()
 	coll := db.Collection("message")
 
-	result, err := coll.Find(context.TODO(), bson.D{{"chat_room", chatRoomId}})
+	result, err := coll.Find(context.TODO(), bson.D{{"chatroom", chatRoomId}})
 	if err != nil {
 		return nil, err
 	}
