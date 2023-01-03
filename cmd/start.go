@@ -29,10 +29,7 @@ to quickly create a Cobra application.`,
 			log.Fatal("Error loading .env file")
 		}
 		services.InitDbClient(
-			os.Getenv("MONGO_HOST"),
-			os.Getenv("MONGO_PORT"),
-			os.Getenv("MONGO_USERNAME"),
-			os.Getenv("MONGO_PASSWORD"),
+			os.Getenv("MONGO_CONNECTION_STRING"),
 			os.Getenv("MONGO_DB"))
 		services.InitWebSocket()
 		app.Start()

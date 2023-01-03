@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"log"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -10,8 +9,8 @@ import (
 
 var db *mongo.Database
 
-func InitDbClient(host string, port string, username string, password string, database string) {
-	_dbClient, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%s@%s:%s/admin", username, password, host, port)))
+func InitDbClient(connectionString string, database string) {
+	_dbClient, err := mongo.NewClient(options.Client().ApplyURI(connectionString))
 	if err != nil {
 		log.Println(err)
 	}

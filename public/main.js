@@ -2,6 +2,7 @@ let ws;
 let receiver;
 let username;
 let currentChatRoom;
+const wsHost = "ws://localhost:8800/saas/api/ws";
 const host = "http://localhost:8800";
 
 async function main() {
@@ -37,7 +38,7 @@ async function main() {
 main();
 
 function renderChatApp(props) {
-  ws = new WebSocket("ws://localhost:8800/saas/api/ws");
+  ws = new WebSocket(wsHost);
   ws.onmessage = (e) => {
     const message = JSON.parse(e.data);
     console.log(message);
