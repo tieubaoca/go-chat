@@ -10,6 +10,7 @@ import (
 func JwtMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		accessTokenCookie, err := r.Cookie("access-token")
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)

@@ -14,6 +14,7 @@ import (
 var HomeDir string
 
 func Start() {
+
 	r := mux.NewRouter().StrictSlash(true)
 	r.Handle("/saas/api/ws", http.HandlerFunc(middleware.JwtMiddleware(controllers.HandleWebSocket)))
 

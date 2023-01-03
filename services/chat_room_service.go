@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log"
 
 	"github.com/tieubaoca/go-chat-server/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -10,6 +11,12 @@ import (
 )
 
 func FindChatroomById(id string) (models.Chatroom, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("chat_room")
 	var result models.Chatroom
 	obId, err := primitive.ObjectIDFromHex(id)
@@ -21,6 +28,12 @@ func FindChatroomById(id string) (models.Chatroom, error) {
 }
 
 func FindChatroomsByMember(member string) ([]models.Chatroom, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("chat_room")
 	cursor, err := coll.Find(context.TODO(), bson.D{{"members", member}})
 	if err != nil {
@@ -35,6 +48,12 @@ func FindChatroomsByMember(member string) ([]models.Chatroom, error) {
 }
 
 func FindDMByMembers(members []string) (models.Chatroom, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("chat_room")
 	var result models.Chatroom
 	err := coll.FindOne(
@@ -53,11 +72,23 @@ func FindDMByMembers(members []string) (models.Chatroom, error) {
 }
 
 func InsertChatroom(chatRoom interface{}) (*mongo.InsertOneResult, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("chat_room")
 	return coll.InsertOne(context.TODO(), chatRoom)
 }
 
 func AddMemberToChatroom(chatRoomId string, member string) (*mongo.UpdateResult, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("chat_room")
 	obId, err := primitive.ObjectIDFromHex(chatRoomId)
 	if err != nil {

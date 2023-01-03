@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// mapping from session id to websocket client
 var wsClients map[string]map[string]*types.WebSocketClient
 var upgrader websocket.Upgrader
 var broadcast chan response.WebSocketResponse
@@ -63,11 +64,12 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, username string, se
 		Conn:     ws,
 	}
 	wsClients[username][sessionId] = client
+	ws.WriteJSON(response.WebSocketResponse{
+		EventType:    "Connected",
+		EventPayload: username,
+	})
 	for {
-		ws.WriteJSON(response.WebSocketResponse{
-			EventType:    "Connected",
-			EventPayload: username,
-		})
+
 		var msg response.WebSocketResponse
 		err := ws.ReadJSON(&msg)
 		if err != nil {
@@ -94,6 +96,12 @@ func handleWebSocketResponse() {
 }
 
 func handleMessage(event response.WebSocketResponse) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	msg := event.EventPayload.(map[string]interface{})
 	// Send it out to every client that is currently connected
 	chatRoom, err := FindChatroomById(msg["chatroom"].(string))
@@ -122,9 +130,16 @@ func handleMessage(event response.WebSocketResponse) {
 
 		}
 	}
+
 }
 
 func Logout(username string, sessionId string) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	if _, ok := wsClients[username]; ok {
 		ws, ok := wsClients[username][sessionId]
 		if ok {

@@ -119,7 +119,7 @@ function renderChatApp(props) {
     ).json();
     let chatRoom = res.data;
     console.log(chatRoom);
-    if (chatRoom.members == null) {
+    if (chatRoom == null) {
       let result = await fetch(host + "/saas/api/chat-room/dm", {
         method: "POST",
         headers: {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log"
 
 	"github.com/tieubaoca/go-chat-server/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,6 +12,12 @@ import (
 )
 
 func FindMessagesByChatRoomId(chatRoomId string) ([]models.Message, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("message")
 
 	result, err := coll.Find(context.TODO(), bson.D{{"chat_room", chatRoomId}})
@@ -25,11 +32,23 @@ func FindMessagesByChatRoomId(chatRoomId string) ([]models.Message, error) {
 }
 
 func InsertMessage(message interface{}) (*mongo.InsertOneResult, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("message")
 	return coll.InsertOne(context.TODO(), message)
 }
 
 func PaginationMessagesByChatRoomId(chatRoomId string, limit int64, skip int64) ([]models.Message, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	coll := db.Collection("message")
 	ojId, err := primitive.ObjectIDFromHex(chatRoomId)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 func Authentication(w http.ResponseWriter, r *http.Request) {
 	sessions, err := store.Get(r, "session")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Res(w, saconstant.StatusError, nil, err.Error())
 		return
 	}
 	response.Res(w, saconstant.StatusSuccess, sessions.Values["username"], "Authentication successfully")
