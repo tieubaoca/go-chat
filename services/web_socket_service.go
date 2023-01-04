@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"syscall"
+	"time"
 
 	"github.com/tieubaoca/go-chat-server/saconstant"
 	"github.com/tieubaoca/go-chat-server/types"
@@ -11,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // mapping from session id to websocket client
@@ -124,6 +126,7 @@ func handleMessage(event response.WebSocketResponse) {
 		"chatroom": msg["chatroom"].(string),
 		"sender":   event.Sender,
 		"content":  msg["content"].(string),
+		"createAt": primitive.NewDateTimeFromTime(time.Now()),
 	})
 	if err != nil {
 		log.Println(err)

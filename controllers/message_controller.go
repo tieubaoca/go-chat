@@ -63,7 +63,7 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 		"chatroom": message.Chatroom,
 		"sender":   message.Sender,
 		"content":  message.Content,
-		"createAt": primitive.DateTime(time.Now().Unix() * 1000),
+		"createAt": primitive.NewDateTimeFromTime(time.Now()),
 	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
