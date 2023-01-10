@@ -4,10 +4,10 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/go-chat-server/app"
 	"github.com/tieubaoca/go-chat-server/services"
@@ -24,7 +24,12 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-
+		log.SetLevel(log.InfoLevel)
+		file, err := os.OpenFile("logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.SetOutput(file)
 		if godotenv.Load() != nil {
 			log.Fatal("Error loading .env file")
 		}
@@ -33,6 +38,7 @@ to quickly create a Cobra application.`,
 			os.Getenv("MONGO_DB"))
 		services.InitWebSocket()
 		app.Start()
+
 	},
 }
 

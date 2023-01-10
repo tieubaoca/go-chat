@@ -7,8 +7,9 @@ import (
 type ChatroomType string
 
 var (
-	ChatroomTypeDM    ChatroomType = "DM"
-	ChatroomTypeGroup ChatroomType = "GROUP"
+	ChatroomCollection              = "chatRoom"
+	ChatroomTypeDM     ChatroomType = "DM"
+	ChatroomTypeGroup  ChatroomType = "GROUP"
 )
 
 type Chatroom struct {

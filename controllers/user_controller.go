@@ -3,10 +3,11 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/golang-jwt/jwt"
+	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"github.com/tieubaoca/go-chat-server/saconstant"
 	"github.com/tieubaoca/go-chat-server/services"
+	"github.com/tieubaoca/go-chat-server/types"
+	"github.com/tieubaoca/go-chat-server/utils"
 )
 
 // func FindUserByUsername(w http.ResponseWriter, r *http.Request) {
@@ -15,16 +16,16 @@ import (
 // 	log.Println(username)
 // 	if !ok {
 // 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, saconstant.StatusError, nil, "Username is empty")
+// 		response.Res(w, types.StatusError, nil, "Username is empty")
 // 		return
 // 	}
 // 	user, err := services.FindUserByUsername(username)
 // 	if err != nil {
 // 		w.WriteHeader(http.StatusNoContent)
-// 		response.Res(w, saconstant.StatusError, nil, err.Error())
+// 		response.Res(w, types.StatusError, nil, err.Error())
 // 		return
 // 	}
-// 	response.Res(w, saconstant.StatusSuccess, user, "Find user by username successfully")
+// 	response.Res(w, types.StatusSuccess, user, "Find user by username successfully")
 // }
 
 // func FindUserById(w http.ResponseWriter, r *http.Request) {
@@ -32,47 +33,49 @@ import (
 // 	id, ok := vars["id"]
 // 	if !ok {
 // 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, saconstant.StatusError, nil, "Id is empty")
+// 		response.Res(w, types.StatusError, nil, "Id is empty")
 // 		return
 // 	}
 // 	user, err := services.FindUserById(id)
 // 	if err != nil {
 // 		w.WriteHeader(http.StatusNoContent)
-// 		response.Res(w, saconstant.StatusError, nil, err.Error())
+// 		response.Res(w, types.StatusError, nil, err.Error())
 // 		return
 // 	}
-// 	response.Res(w, saconstant.StatusSuccess, user, "Find user by id successfully")
+// 	response.Res(w, types.StatusSuccess, user, "Find user by id successfully")
 // }
 
-func FindOnlineUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := services.FindOnlineUsers()
+func FindOnlineFriends(w http.ResponseWriter, r *http.Request) {
+	tokenString := utils.GetAccessTokenByReq(r)
+	token, err := utils.ParseUnverified(tokenString)
 	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		log.Error(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	response.Res(w, saconstant.StatusSuccess, users, "Find online users successfully")
+	saId := utils.GetSaIdFromToken(token)
+
+	users, err := services.FindOnlineFriends(saId)
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusNoContent)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+	response.Res(w, types.StatusSuccess, users, "Find online users successfully")
 }
 
 func Logout(w http.ResponseWriter, r *http.Request) {
-	accessTokenString, err := r.Cookie("access-token")
+
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	accessToken, err := services.Parse(accessTokenString.Value)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
-		return
-	}
-	sessions, err := store.Get(r, "session")
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
-		return
-	}
+
 	http.SetCookie(
 		w,
 		&http.Cookie{
@@ -87,8 +90,6 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 			Path: "/",
 		},
 	)
-	sessions.Values = make(map[interface{}]interface{})
-	sessions.Save(r, w)
-	services.Logout(accessToken.Claims.(jwt.MapClaims)["preferred_username"].(string), sessions.ID)
-	response.Res(w, saconstant.StatusSuccess, nil, "Logout successfully")
+	services.Logout(utils.GetSaIdFromToken(token), utils.GetSessionIdFromToken(token))
+	response.Res(w, types.StatusSuccess, nil, "Logout successfully")
 }

@@ -5,39 +5,50 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"github.com/tieubaoca/go-chat-server/saconstant"
 	"github.com/tieubaoca/go-chat-server/services"
+	"github.com/tieubaoca/go-chat-server/types"
+	"github.com/tieubaoca/go-chat-server/utils"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 func Authentication(w http.ResponseWriter, r *http.Request) {
-	sessions, err := store.Get(r, "session")
-	if err != nil {
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+	tokenString := utils.GetAccessTokenByReq(r)
+	if tokenString == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, types.ErrorTokenEmpty)
 		return
 	}
-	response.Res(w, saconstant.StatusSuccess, sessions.Values["username"], "Authentication successfully")
+	token, err := utils.ParseUnverified(tokenString)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+	response.Res(w, types.StatusSuccess, token.Claims, "")
 }
 
 func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 	var getAccTokenReq request.GetAccessTokenReq
 	err := json.NewDecoder(r.Body).Decode(&getAccTokenReq)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	if getAccTokenReq.Username == "" || getAccTokenReq.Password == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, saconstant.StatusError, nil, "Username or password is empty")
+		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
 		return
 	}
 	accessToken, refreshToken, err := services.GetAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -52,26 +63,21 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 		Expires: time.Now().Add(24 * time.Hour),
 		Path:    "/",
 	})
-	session, err := store.Get(r, "session")
+	_, err = utils.Parse(accessToken)
 	if err != nil {
-		response.Res(w, saconstant.StatusError, nil, "Get session failed")
-		return
-	}
-	token, err := services.Parse(accessToken)
-	if err != nil {
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		log.Error(err)
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 
-	session.Values["username"] = token.Claims.(jwt.MapClaims)["preferred_username"].(string)
-
-	// Save it before we write to the response/return from the handler.
-	err = session.Save(r, w)
-	if err != nil {
-		response.Res(w, saconstant.StatusError, nil, "Save session failed")
-		return
-	}
-	response.Res(w, saconstant.StatusSuccess, nil, "Get access token successfully")
+	response.Res(
+		w, types.StatusSuccess,
+		bson.M{
+			"access-token":  accessToken,
+			"refresh-token": refreshToken,
+		},
+		"",
+	)
 
 }
 
@@ -79,19 +85,19 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 // 	accessTokenCookie, err := r.Cookie("access-token")
 // 	if err != nil {
 // 		w.WriteHeader(http.StatusUnauthorized)
-// 		response.Res(w, saconstant.StatusError, nil, err.Error())
+// 		response.Res(w, types.StatusError, nil, err.Error())
 // 		return
 // 	}
 // 	accessToken := accessTokenCookie.Value
 // 	if accessToken == "" {
 // 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, saconstant.StatusError, nil, "Access token is empty")
+// 		response.Res(w, types.StatusError, nil, "Access token is empty")
 // 		return
 // 	}
 // 	refreshedAccessToken, err := services.RefreshAccessToken(accessToken)
 // 	if err != nil {
 // 		w.WriteHeader(http.StatusInternalServerError)
-// 		response.Res(w, saconstant.StatusError, nil, err.Error())
+// 		response.Res(w, types.StatusError, nil, err.Error())
 // 		return
 // 	}
 // 	http.SetCookie(w, &http.Cookie{
@@ -99,5 +105,5 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 // 		Value:   refreshedAccessToken,
 // 		Expires: time.Now().Add(24 * time.Hour),
 // 	})
-// 	response.Res(w, saconstant.StatusSuccess, nil, "Refresh access token successfully")
+// 	response.Res(w, types.StatusSuccess, nil, "Refresh access token successfully")
 // }

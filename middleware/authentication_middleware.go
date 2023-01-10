@@ -4,29 +4,31 @@ import (
 	"net/http"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/tieubaoca/go-chat-server/services"
+	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-func JwtMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func JwtMiddleware(next http.HandlerFunc, requireRole string) http.HandlerFunc {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		accessTokenCookie, err := r.Cookie("access-token")
+		accessTokenString := utils.GetAccessTokenByReq(r)
+		if accessTokenString == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		token, err := utils.Parse(accessTokenString)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		if accessTokenCookie.Value == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
+		account := token.Claims.(jwt.MapClaims)["resource_access"].(map[string]interface{})["account"].(map[string]interface{})
+		for _, role := range account["roles"].([]interface{}) {
+			if role == requireRole {
+				next(w, r)
+				return
+			}
 		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
 
-		token, err := services.Parse(accessTokenCookie.Value)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		r.Header.Set("username", token.Claims.(jwt.MapClaims)["preferred_username"].(string))
-		next(w, r)
 	})
 }

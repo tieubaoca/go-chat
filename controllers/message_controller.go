@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
-	"github.com/tieubaoca/go-chat-server/saconstant"
 	"github.com/tieubaoca/go-chat-server/services"
+	"github.com/tieubaoca/go-chat-server/types"
+	"github.com/tieubaoca/go-chat-server/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -19,44 +21,94 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	chatRoomId, ok := vars["chatRoomId"]
 	if !ok {
+		log.Error("Chat room id is empty")
 		w.WriteHeader(http.StatusBadRequest)
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	chatRoom, err := services.FindChatroomById(chatRoomId)
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+
+	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+		log.Error("You are not a member of this chat room")
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, "You are not a member of this chat room")
+		return
+	}
+
 	messages, err := services.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	response.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, types.StatusSuccess, messages, "Get messages successfully")
 }
 
 func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	var pagination request.MessagePaginationReq
 	err := json.NewDecoder(r.Body).Decode(&pagination)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 	}
+
+	chatRoom, err := services.FindChatroomById(pagination.ChatRoomId)
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+
+	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+		log.Error("You are not a member of this chat room")
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, "You are not a member of this chat room")
+		return
+	}
+
 	messages, err := services.PaginationMessagesByChatRoomId(
 		pagination.ChatRoomId,
 		pagination.Limit,
 		pagination.Skip,
 	)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	response.Res(w, saconstant.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, types.StatusSuccess, messages, "Get messages successfully")
 }
 
 func InsertMessage(w http.ResponseWriter, r *http.Request) {
 	var message models.Message
 	err := json.NewDecoder(r.Body).Decode(&message)
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	result, err := services.InsertMessage(bson.M{
@@ -66,9 +118,10 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 		"createAt": primitive.NewDateTimeFromTime(time.Now()),
 	})
 	if err != nil {
+		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, saconstant.StatusError, nil, err.Error())
+		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	response.Res(w, saconstant.StatusSuccess, result, "Insert message successfully")
+	response.Res(w, types.StatusSuccess, result, "Insert message successfully")
 }

@@ -1,7 +1,10 @@
 package services
 
 import (
-	"log"
+	"context"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -10,14 +13,19 @@ import (
 var db *mongo.Database
 
 func InitDbClient(connectionString string, database string) {
-	_dbClient, err := mongo.NewClient(options.Client().ApplyURI(connectionString))
+
+	opts := options.Client().ApplyURI(connectionString).SetTimeout(2 * time.Second).SetConnectTimeout(3 * time.Second)
+	_dbClient, err := mongo.NewClient(opts)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
-	err = _dbClient.Connect(nil)
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+	err = _dbClient.Connect(ctx)
 	if err != nil {
-		log.Println(err)
+		log.Panic(err)
 	}
+
 	db = _dbClient.Database(database)
 }
 
