@@ -63,7 +63,7 @@ func FindOnlineFriends(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	response.Res(w, types.StatusSuccess, users, "Find online users successfully")
+	response.Res(w, types.StatusSuccess, users, "")
 }
 
 func Logout(w http.ResponseWriter, r *http.Request) {
@@ -91,5 +91,5 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	services.Logout(utils.GetSaIdFromToken(token), utils.GetSessionIdFromToken(token))
-	response.Res(w, types.StatusSuccess, nil, "Logout successfully")
+	response.Res(w, types.StatusSuccess, nil, "")
 }

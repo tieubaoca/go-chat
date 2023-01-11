@@ -21,7 +21,7 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	chatRoomId, ok := vars["chatRoomId"]
 	if !ok {
-		log.Error("Chat room id is empty")
+		log.Error(types.ErrorInvalidInput)
 		w.WriteHeader(http.StatusBadRequest)
 		w.WriteHeader(http.StatusBadRequest)
 	}
@@ -41,9 +41,9 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
-		log.Error("You are not a member of this chat room")
+		log.Error(types.ErrorNotRoomMember)
 		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, "You are not a member of this chat room")
+		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
 		return
 	}
 
@@ -54,7 +54,7 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	response.Res(w, types.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, types.StatusSuccess, messages, "")
 }
 
 func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
@@ -82,9 +82,9 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
-		log.Error("You are not a member of this chat room")
+		log.Error(types.ErrorNotRoomMember)
 		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, "You are not a member of this chat room")
+		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
 		return
 	}
 
@@ -99,7 +99,7 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(err)
 		return
 	}
-	response.Res(w, types.StatusSuccess, messages, "Get messages successfully")
+	response.Res(w, types.StatusSuccess, messages, "")
 }
 
 func InsertMessage(w http.ResponseWriter, r *http.Request) {
@@ -123,5 +123,5 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	response.Res(w, types.StatusSuccess, result, "Insert message successfully")
+	response.Res(w, types.StatusSuccess, result, "")
 }

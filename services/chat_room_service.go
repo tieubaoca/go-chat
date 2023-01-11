@@ -19,7 +19,7 @@ func FindChatroomById(id string) (models.Chatroom, error) {
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	var result models.Chatroom
 	obId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -36,7 +36,7 @@ func FindChatroomsByMember(member string) ([]models.Chatroom, error) {
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	cursor, err := coll.Find(context.TODO(), bson.D{{"members", member}})
 	if err != nil {
 		log.Error(err)
@@ -55,7 +55,7 @@ func FindGroupsByMembers(members []string) ([]models.Chatroom, error) {
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	var result []models.Chatroom
 	cursor, err := coll.Find(
 		context.TODO(),
@@ -84,7 +84,7 @@ func FindDMByMembers(members []string) (models.Chatroom, error) {
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	var result models.Chatroom
 	err := coll.FindOne(
 		context.TODO(),
@@ -108,7 +108,7 @@ func InsertChatroom(chatRoom models.Chatroom) (*mongo.InsertOneResult, error) {
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	return coll.InsertOne(
 		context.TODO(),
 		bson.M{
@@ -127,7 +127,7 @@ func AddMemberToChatroom(chatRoomId string, member string) (*mongo.UpdateResult,
 			log.Error(err)
 		}
 	}()
-	coll := db.Collection("chatRoom")
+	coll := db.Collection(models.ChatroomCollection)
 	chatRoom, err := FindChatroomById(chatRoomId)
 	if err != nil {
 		log.Error(err)
