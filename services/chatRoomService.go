@@ -12,14 +12,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func FindChatroomById(id string) (models.ChatRoom, error) {
+func FindChatRoomById(id string) (models.ChatRoom, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
+	coll := db.Collection(models.ChatRoomCollection)
 	var result models.ChatRoom
 	obId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -29,14 +29,14 @@ func FindChatroomById(id string) (models.ChatRoom, error) {
 	return result, err
 }
 
-func FindChatroomsByMember(member string) ([]models.ChatRoom, error) {
+func FindChatRoomsByMember(member string) ([]models.ChatRoom, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
+	coll := db.Collection(models.ChatRoomCollection)
 	cursor, err := coll.Find(context.TODO(), bson.D{{"members", member}})
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -55,7 +55,7 @@ func FindGroupsByMembers(members []string) ([]models.ChatRoom, error) {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
+	coll := db.Collection(models.ChatRoomCollection)
 	var result []models.ChatRoom
 	cursor, err := coll.Find(
 		context.TODO(),
@@ -66,7 +66,7 @@ func FindGroupsByMembers(members []string) ([]models.ChatRoom, error) {
 					{"$all", members},
 				},
 			},
-			{"type", models.ChatroomTypeGroup},
+			{"type", models.ChatRoomTypeGroup},
 		},
 	)
 	if err != nil {
@@ -84,7 +84,7 @@ func FindDMByMembers(members []string) (models.ChatRoom, error) {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
+	coll := db.Collection(models.ChatRoomCollection)
 	var result models.ChatRoom
 	err := coll.FindOne(
 		context.TODO(),
@@ -95,20 +95,20 @@ func FindDMByMembers(members []string) (models.ChatRoom, error) {
 					{"$all", members},
 				},
 			},
-			{"type", models.ChatroomTypeDM},
+			{"type", models.ChatRoomTypeDM},
 		},
 	).Decode(&result)
 	return result, err
 }
 
-func InsertChatroom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
+func InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
+	coll := db.Collection(models.ChatRoomCollection)
 	return coll.InsertOne(
 		context.TODO(),
 		bson.M{
@@ -120,20 +120,20 @@ func InsertChatroom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
 	)
 }
 
-func AddMemberToChatroom(chatRoomId string, member string) (*mongo.UpdateResult, error) {
+func AddMemberToChatRoom(chatRoomId string, member string) (*mongo.UpdateResult, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	coll := db.Collection(models.ChatroomCollection)
-	chatRoom, err := FindChatroomById(chatRoomId)
+	coll := db.Collection(models.ChatRoomCollection)
+	chatRoom, err := FindChatRoomById(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return nil, err
 	}
-	if chatRoom.Type == models.ChatroomTypeDM {
+	if chatRoom.Type == models.ChatRoomTypeDM {
 		return nil, errors.New("Cannot add member to DM")
 	}
 

@@ -25,7 +25,7 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	chatRoom, err := services.FindChatroomById(chatRoomId)
+	chatRoom, err := services.FindChatRoomById(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -66,7 +66,7 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, err.Error())
 	}
 
-	chatRoom, err := services.FindChatroomById(pagination.ChatRoomId)
+	chatRoom, err := services.FindChatRoomById(pagination.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -112,7 +112,7 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := services.InsertMessage(bson.M{
-		"chatroom": message.Chatroom,
+		"chatRoom": message.ChatRoom,
 		"sender":   message.Sender,
 		"content":  message.Content,
 		"createAt": primitive.NewDateTimeFromTime(time.Now()),

@@ -8,8 +8,8 @@ var MessageCollection = "message"
 
 type Message struct {
 	Id       primitive.ObjectID `bson:"_id" json:"id,omitempty"`
-	Chatroom string             `json:"chatroom"`
-	Sender   string             `json:"sender"`
-	Content  string             `json:"content"`
-	CreateAt primitive.DateTime `json:"createAt"`
+	ChatRoom string             `json:"chatRoom" bson:"chatRoom"`
+	Sender   string             `json:"sender" bson:"sender"`
+	Content  string             `json:"content" bson:"content"`
+	CreateAt primitive.DateTime `json:"createAt" bson:"createAt"`
 }

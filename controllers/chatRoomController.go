@@ -23,7 +23,7 @@ func FindChatRoomById(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
 		return
 	}
-	chatRoom, err := services.FindChatroomById(id)
+	chatRoom, err := services.FindChatRoomById(id)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusNoContent)
@@ -48,7 +48,7 @@ func FindChatRooms(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	chatRooms, err := services.FindChatroomsByMember(utils.GetSaIdFromToken(token))
+	chatRooms, err := services.FindChatRoomsByMember(utils.GetSaIdFromToken(token))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusNoContent)
@@ -110,14 +110,14 @@ func FindGroupsByMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatrooms, err := services.FindGroupsByMembers(append(members, utils.GetSaIdFromToken(token)))
+	chatRooms, err := services.FindGroupsByMembers(append(members, utils.GetSaIdFromToken(token)))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	response.Res(w, types.StatusSuccess, chatrooms, "")
+	response.Res(w, types.StatusSuccess, chatRooms, "")
 }
 
 func CreateNewGroupChat(w http.ResponseWriter, r *http.Request) {
@@ -131,11 +131,11 @@ func CreateNewGroupChat(w http.ResponseWriter, r *http.Request) {
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	chatRoom.Type = models.ChatroomTypeGroup
+	chatRoom.Type = models.ChatRoomTypeGroup
 	token, _ := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	chatRoom.Owner = utils.GetSaIdFromToken(token)
 
-	result, err := services.InsertChatroom(chatRoom)
+	result, err := services.InsertChatRoom(chatRoom)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -173,10 +173,10 @@ func CreateDMRoom(w http.ResponseWriter, r *http.Request) {
 		utils.GetSaIdFromToken(token),
 	}
 	sort.Strings(members)
-	result, err := services.InsertChatroom(
+	result, err := services.InsertChatRoom(
 		models.ChatRoom{
 			Name:    members[0] + "-" + members[1],
-			Type:    models.ChatroomTypeDM,
+			Type:    models.ChatRoomTypeDM,
 			Members: members,
 		},
 	)

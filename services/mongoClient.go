@@ -38,7 +38,7 @@ func InitDbClient(connectionString string, database string) {
 }
 
 func InitCollections() {
-	db.Collection(models.ChatroomCollection).Indexes().CreateOne(context.Background(), mongo.IndexModel{
+	db.Collection(models.ChatRoomCollection).Indexes().CreateOne(context.Background(), mongo.IndexModel{
 		Keys:    bson.D{{"members", 1}},
 		Options: options.Index().SetUnique(true),
 	})

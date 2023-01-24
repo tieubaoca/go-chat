@@ -157,7 +157,7 @@ func handleMessage(event response.WebSocketResponse) {
 	}()
 	msg := event.EventPayload.(map[string]interface{})
 	// Send it out to every client that is currently connected
-	chatRoom, err := FindChatroomById(msg["chatroom"].(string))
+	chatRoom, err := FindChatRoomById(msg["chatRoom"].(string))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 	}
@@ -167,13 +167,13 @@ func handleMessage(event response.WebSocketResponse) {
 			ws.Conn.WriteJSON(response.WebSocketResponse{
 				EventType:    types.WebsocketEventTypeError,
 				Sender:       "server",
-				EventPayload: "You are not a member of this chatroom",
+				EventPayload: "You are not a member of this chat room",
 			})
 		}
 		return
 	}
 	_, err = InsertMessage(bson.M{
-		"chatroom": msg["chatroom"].(string),
+		"chatRoom": msg["chatRoom"].(string),
 		"sender":   event.Sender,
 		"content":  msg["content"].(string),
 		"createAt": primitive.NewDateTimeFromTime(time.Now()),

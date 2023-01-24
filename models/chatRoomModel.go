@@ -4,18 +4,18 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type ChatroomType string
+type ChatRoomType string
 
 var (
-	ChatroomCollection              = "chatRoom"
-	ChatroomTypeDM     ChatroomType = "DM"
-	ChatroomTypeGroup  ChatroomType = "GROUP"
+	ChatRoomCollection              = "chatRoom"
+	ChatRoomTypeDM     ChatRoomType = "DM"
+	ChatRoomTypeGroup  ChatRoomType = "GROUP"
 )
 
 type ChatRoom struct {
 	Id      primitive.ObjectID `bson:"_id" json:"id,omitempty"`
-	Owner   string             `json:"owner"`
-	Type    ChatroomType       `json:"type"`
-	Name    string             `json:"name"`
-	Members []string           `json:"members"`
+	Owner   string             `json:"owner" bson:"owner"`
+	Type    ChatRoomType       `json:"type" bson:"type"`
+	Name    string             `json:"name" bson:"name"`
+	Members []string           `json:"members" bson:"members"`
 }
