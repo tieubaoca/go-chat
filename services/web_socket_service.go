@@ -5,7 +5,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
@@ -17,9 +17,11 @@ import (
 )
 
 // mapping from session id to websocket client
-var wsClients map[string]map[string]*types.WebSocketClient
+var wsFd map[string][]int
+var wsClients map[int]types.WebSocketClient
 var upgrader websocket.Upgrader
 var broadcast chan response.WebSocketResponse
+var epoll *types.Epoll
 
 // / InitWebSocket initializes the websocket server
 func InitWebSocket() {
@@ -33,19 +35,23 @@ func InitWebSocket() {
 		panic(err)
 	}
 	// Init websocket client map
-	wsClients = make(map[string]map[string]*types.WebSocketClient)
+	wsFd = make(map[string][]int)
+
+	wsClients = make(map[int]types.WebSocketClient)
+	epoll, _ = types.MkEpoll()
+
 	// Init websocket upgrader
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 		Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
-			log.Error("Websocket error: ", reason)
+			log.ErrorLogger.Println("Websocket error: ", reason)
 			response.Res(w, types.StatusError, nil, reason.Error())
 		},
 	}
 	broadcast = make(chan response.WebSocketResponse)
-
+	go HandleEpoll()
 	go handleWebSocketResponse()
 }
 
@@ -54,48 +60,74 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string, sessio
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		return
 	}
-	defer ws.Close()
 
-	if _, ok := wsClients[saId]; !ok {
-		wsClients[saId] = make(map[string]*types.WebSocketClient)
-	}
-	log.Info("Add new client: ", saId)
+	// if _, ok := wsClients[saId]; !ok {
+	// 	wsClients[saId] = make(map[string]*types.WebSocketClient)
+	// }
+	log.InfoLogger.Println("Add new client: ", saId)
 	client := &types.WebSocketClient{
 		SaId: saId,
 		Conn: ws,
 	}
+	// Add new client to epoll
+	fd, err := epoll.Add(client.Conn)
+	wsClients[fd] = *client
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		return
+	}
 	UpdateUserStatus(saId, true, primitive.NewDateTimeFromTime(time.Now()))
-
-	wsClients[saId][sessionId] = client
+	if _, ok := wsFd[saId]; !ok {
+		wsFd[saId] = make([]int, 0)
+	}
+	wsFd[saId] = append(wsFd[saId], fd)
 	ws.WriteJSON(response.WebSocketResponse{
 		EventType:    "Connected",
 		EventPayload: saId,
 	})
-	for {
+}
 
-		var msg response.WebSocketResponse
-		err := ws.ReadJSON(&msg)
+func HandleEpoll() {
+	defer func() {
+		err := recover()
 		if err != nil {
-			log.Error("error: %v", err)
-			client.Close()
-			delete(wsClients[saId], sessionId)
-			if len(wsClients[saId]) == 0 {
-				UpdateUserStatus(saId, false, primitive.NewDateTimeFromTime(time.Now()))
-				delete(wsClients, saId)
-			}
-			break
+			log.ErrorLogger.Println(err)
 		}
-		msg.Sender = saId
-		// Send the newly received message to the broadcast channel
-		broadcast <- msg
+	}()
+	for {
+		fds, err := epoll.Wait()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+			continue
+		}
+		for _, fd := range fds {
+			log.InfoLogger.Println("Read from fd: ", fd)
+			client, ok := wsClients[fd]
+			if !ok {
+				log.ErrorLogger.Println("Client not found")
+				continue
+			}
+			msg, err := client.Read()
+			if err != nil {
+				log.ErrorLogger.Println(err)
+				epoll.Remove(wsClients[fd].Conn)
+				delete(wsClients, fd)
+				wsFd[client.SaId] = utils.ArrayRemoveElement(wsFd[client.SaId], fd).([]int)
+				if len(wsFd[client.SaId]) == 0 {
+					UpdateUserStatus(client.SaId, false, primitive.NewDateTimeFromTime(time.Now()))
+				}
+				continue
+			}
+			broadcast <- msg
+		}
 	}
 }
 
@@ -103,7 +135,7 @@ func handleWebSocketResponse() {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	for {
@@ -120,17 +152,18 @@ func handleMessage(event response.WebSocketResponse) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	msg := event.EventPayload.(map[string]interface{})
 	// Send it out to every client that is currently connected
 	chatRoom, err := FindChatroomById(msg["chatroom"].(string))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 	}
 	if !utils.ContainsString(chatRoom.Members, event.Sender) {
-		for _, ws := range wsClients[event.Sender] {
+		for _, fd := range wsFd[event.Sender] {
+			ws := wsClients[fd]
 			ws.Conn.WriteJSON(response.WebSocketResponse{
 				EventType:    types.WebsocketEventTypeError,
 				Sender:       "server",
@@ -146,19 +179,18 @@ func handleMessage(event response.WebSocketResponse) {
 		"createAt": primitive.NewDateTimeFromTime(time.Now()),
 	})
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		return
 	}
 	for _, member := range chatRoom.Members {
-		if wss, ok := wsClients[member]; ok {
-			for sessionId, ws := range wss {
-				err := ws.Conn.WriteJSON(event)
-				if err != nil {
-					log.Printf("error: %v", err)
-					ws.Close()
-					delete(wsClients[member], sessionId)
-				}
-			}
+		fds := wsFd[member]
+		for _, fd := range fds {
+			ws := wsClients[fd]
+			ws.Conn.WriteJSON(response.WebSocketResponse{
+				EventType:    types.WebsocketEventTypeMessage,
+				Sender:       event.Sender,
+				EventPayload: msg["content"].(string),
+			})
 
 		}
 	}
@@ -169,14 +201,14 @@ func Logout(saId string, sessionId string) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
-	if _, ok := wsClients[saId]; ok {
-		ws, ok := wsClients[saId][sessionId]
-		if ok {
-			ws.Close()
-			delete(wsClients[saId], sessionId)
-		}
-	}
+	// if _, ok := wsClients[saId]; ok {
+	// 	ws, ok := wsClients[saId][sessionId]
+	// 	if ok {
+	// 		ws.Close()
+	// 		delete(wsClients[saId], sessionId)
+	// 	}
+	// }
 }

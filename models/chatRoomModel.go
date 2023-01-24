@@ -12,7 +12,7 @@ var (
 	ChatroomTypeGroup  ChatroomType = "GROUP"
 )
 
-type Chatroom struct {
+type ChatRoom struct {
 	Id      primitive.ObjectID `bson:"_id" json:"id,omitempty"`
 	Owner   string             `json:"owner"`
 	Type    ChatroomType       `json:"type"`

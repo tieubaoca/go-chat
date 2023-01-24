@@ -4,23 +4,26 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tieubaoca/go-chat-server/utils/log"
+
+	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func FindOnlineFriends(saId string) ([]interface{}, error) {
+func PaginationOnlineFriends(saId string, paginationReq request.PaginationOnlineFriendReq) ([]interface{}, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 
@@ -35,31 +38,34 @@ func FindOnlineFriends(saId string) ([]interface{}, error) {
 			Scheme: "http",
 			Host:   os.Getenv("SAAS_HOST"),
 			Path:   "/saas/api/v1/friend/getListFriendInfo",
+			RawQuery: url.Values{
+				"page": []string{fmt.Sprint(paginationReq.Page)},
+				"size": []string{fmt.Sprint(paginationReq.Size)},
+			}.Encode(),
 		},
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
 		},
+
 		Body: io.NopCloser(jsonBody),
 	}
-
 	client := &http.Client{}
 
 	resp, err := client.Do(&req)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var resBody response.SaasResponse
 	json.NewDecoder(resp.Body).Decode(&resBody)
-	log.Info(resBody)
+	log.InfoLogger.Println(resBody)
 	data := resBody.Data.([]interface{})
 	saIds := make([]string, 0)
 	for _, v := range data {
 		saIds = append(saIds, v.(map[string]interface{})["saId"].(string))
 	}
 	userStatus := FindUserStatusInSaIdList(saIds)
-	log.Println(userStatus)
 	for _, v := range data {
 		friendSaId := v.(map[string]interface{})["saId"].(string)
 		if friendStatus, ok := userStatus[friendSaId]; ok {
@@ -77,18 +83,18 @@ func FindUserStatusInSaIdList(saIds []string) map[string]models.UserOnlineStatus
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	coll := db.Collection(models.UserOnlineStatusCollection)
 	result, err := coll.Find(context.TODO(), bson.D{{"saId", bson.D{{"$in", saIds}}}})
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		return nil
 	}
 	var users []models.UserOnlineStatus
 	if err = result.All(context.TODO(), &users); err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		return nil
 	}
 	mapUser := make(map[string]models.UserOnlineStatus)
@@ -103,14 +109,14 @@ func FindUserStatusBySaId(saId string) models.UserOnlineStatus {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	coll := db.Collection(models.UserOnlineStatusCollection)
 	result := coll.FindOne(context.TODO(), bson.D{{"saId", saId}})
 	var user models.UserOnlineStatus
 	if err := result.Decode(&user); err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 	}
 	return user
 }
@@ -119,7 +125,7 @@ func UpdateUserStatus(saId string, isActive bool, lastSeen primitive.DateTime) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 	}()
 	coll := db.Collection(models.UserOnlineStatusCollection)
@@ -130,7 +136,7 @@ func UpdateUserStatus(saId string, isActive bool, lastSeen primitive.DateTime) {
 			"lastSeen": lastSeen,
 		})
 		if err != nil {
-			log.Error(err)
+			log.ErrorLogger.Println(err)
 		}
 		return
 	}
@@ -141,7 +147,7 @@ func UpdateUserStatus(saId string, isActive bool, lastSeen primitive.DateTime) {
 		}},
 	})
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 	}
 
 }

@@ -3,7 +3,8 @@ package controllers
 import (
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tieubaoca/go-chat-server/utils/log"
+
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/utils"
 )
@@ -11,9 +12,9 @@ import (
 func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
-	log.Info(token)
+	log.InfoLogger.Println(token)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

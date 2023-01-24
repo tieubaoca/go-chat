@@ -6,28 +6,35 @@ import (
 	"sort"
 
 	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
+	"github.com/tieubaoca/go-chat-server/utils/log"
 )
 
 func FindChatRoomById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, ok := vars["id"]
 	if !ok {
-		log.Error(types.ErrorInvalidInput)
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
 		return
 	}
 	chatRoom, err := services.FindChatroomById(id)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusNoContent)
 		response.Res(w, types.StatusError, nil, err.Error())
+		return
+	}
+	token, _ := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+		log.ErrorLogger.Println(types.ErrorNotRoomMember)
+		w.WriteHeader(http.StatusUnauthorized)
+		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
 		return
 	}
 	response.Res(w, types.StatusSuccess, chatRoom, "")
@@ -36,14 +43,14 @@ func FindChatRoomById(w http.ResponseWriter, r *http.Request) {
 func FindChatRooms(w http.ResponseWriter, r *http.Request) {
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	chatRooms, err := services.FindChatroomsByMember(utils.GetUsernameFromToken(token))
+	chatRooms, err := services.FindChatroomsByMember(utils.GetSaIdFromToken(token))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusNoContent)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -56,30 +63,30 @@ func FindDMByMembers(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&member)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	if member == "" {
-		log.Error(types.ErrorInvalidInput)
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
 		return
 	}
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 
-	members := []string{member, utils.GetUsernameFromToken(token)}
+	members := []string{member, utils.GetSaIdFromToken(token)}
 
 	chatRoom, err := services.FindDMByMembers(members)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -97,15 +104,15 @@ func FindGroupsByMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 
-	chatrooms, err := services.FindGroupsByMembers(append(members, utils.GetUsernameFromToken(token)))
+	chatrooms, err := services.FindGroupsByMembers(append(members, utils.GetSaIdFromToken(token)))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -114,29 +121,23 @@ func FindGroupsByMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateNewGroupChat(w http.ResponseWriter, r *http.Request) {
-	var chatRoom models.Chatroom
+
+	var chatRoom models.ChatRoom
 	err := json.NewDecoder(r.Body).Decode(&chatRoom)
 
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
-	if chatRoom.Type != models.ChatroomTypeGroup {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
-		return
-	}
-	if chatRoom.Owner == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
-		return
-	}
+	chatRoom.Type = models.ChatroomTypeGroup
+	token, _ := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	chatRoom.Owner = utils.GetSaIdFromToken(token)
 
 	result, err := services.InsertChatroom(chatRoom)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -149,7 +150,7 @@ func CreateDMRoom(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&member)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -161,7 +162,7 @@ func CreateDMRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -169,18 +170,18 @@ func CreateDMRoom(w http.ResponseWriter, r *http.Request) {
 
 	members := []string{
 		member,
-		utils.GetUsernameFromToken(token),
+		utils.GetSaIdFromToken(token),
 	}
 	sort.Strings(members)
 	result, err := services.InsertChatroom(
-		models.Chatroom{
+		models.ChatRoom{
 			Name:    members[0] + "-" + members[1],
 			Type:    models.ChatroomTypeDM,
 			Members: members,
 		},
 	)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return

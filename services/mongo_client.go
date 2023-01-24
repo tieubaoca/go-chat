@@ -4,8 +4,11 @@ import (
 	"context"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tieubaoca/go-chat-server/utils/log"
 
+	"github.com/tieubaoca/go-chat-server/models"
+
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -17,16 +20,32 @@ func InitDbClient(connectionString string, database string) {
 	opts := options.Client().ApplyURI(connectionString).SetTimeout(2 * time.Second).SetConnectTimeout(3 * time.Second)
 	_dbClient, err := mongo.NewClient(opts)
 	if err != nil {
-		log.Panic(err)
+		log.ErrorLogger.Panicln(err)
 	}
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 
 	err = _dbClient.Connect(ctx)
 	if err != nil {
-		log.Panic(err)
+		log.ErrorLogger.Panicln(err)
+	}
+
+	err = _dbClient.Ping(ctx, nil)
+	if err != nil {
+		log.ErrorLogger.Panicln(err)
 	}
 
 	db = _dbClient.Database(database)
+}
+
+func InitCollections() {
+	db.Collection(models.ChatroomCollection).Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.D{{"members", 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	db.Collection(models.UserOnlineStatusCollection).Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.D{{"saId", 1}},
+		Options: options.Index().SetUnique(true),
+	})
 }
 
 // GetDBClient returns the database client

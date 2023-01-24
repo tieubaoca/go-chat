@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tieubaoca/go-chat-server/utils/log"
+
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/services"
@@ -34,7 +35,7 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 	var getAccTokenReq request.GetAccessTokenReq
 	err := json.NewDecoder(r.Body).Decode(&getAccTokenReq)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -46,7 +47,7 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 	}
 	accessToken, refreshToken, err := services.GetAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -65,7 +66,7 @@ func GetAccessToken(w http.ResponseWriter, r *http.Request) {
 	})
 	_, err = utils.Parse(accessToken)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}

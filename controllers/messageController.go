@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
+	"github.com/tieubaoca/go-chat-server/utils/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -21,27 +21,27 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	chatRoomId, ok := vars["chatRoomId"]
 	if !ok {
-		log.Error(types.ErrorInvalidInput)
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		w.WriteHeader(http.StatusBadRequest)
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	chatRoom, err := services.FindChatroomById(chatRoomId)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
-		log.Error(types.ErrorNotRoomMember)
+		log.ErrorLogger.Println(types.ErrorNotRoomMember)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
 		return
@@ -49,7 +49,7 @@ func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := services.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
 		return
@@ -61,28 +61,28 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	var pagination request.MessagePaginationReq
 	err := json.NewDecoder(r.Body).Decode(&pagination)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 	}
 
 	chatRoom, err := services.FindChatroomById(pagination.ChatRoomId)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
-		log.Error(types.ErrorNotRoomMember)
+		log.ErrorLogger.Println(types.ErrorNotRoomMember)
 		w.WriteHeader(http.StatusUnauthorized)
 		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
 		return
@@ -94,7 +94,7 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 		pagination.Skip,
 	)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
 		return
@@ -106,7 +106,7 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 	var message models.Message
 	err := json.NewDecoder(r.Body).Decode(&message)
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
@@ -118,7 +118,7 @@ func InsertMessage(w http.ResponseWriter, r *http.Request) {
 		"createAt": primitive.NewDateTimeFromTime(time.Now()),
 	})
 	if err != nil {
-		log.Error(err)
+		log.ErrorLogger.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Res(w, types.StatusError, nil, err.Error())
 		return
