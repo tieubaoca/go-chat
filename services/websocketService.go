@@ -120,7 +120,7 @@ func HandleEpoll() {
 				log.ErrorLogger.Println(err)
 				epoll.Remove(wsClients[fd].Conn)
 				delete(wsClients, fd)
-				wsFd[client.SaId] = utils.ArrayRemoveElement(wsFd[client.SaId], fd).([]int)
+				wsFd[client.SaId] = utils.ArrayIntRemoveElement(wsFd[client.SaId], fd)
 				if len(wsFd[client.SaId]) == 0 {
 					UpdateUserStatus(client.SaId, false, primitive.NewDateTimeFromTime(time.Now()))
 				}

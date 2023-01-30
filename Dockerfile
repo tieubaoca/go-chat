@@ -1,4 +1,4 @@
-FROM golang:1.19
+FROM golang:alpine
 WORKDIR /docker/go/src/chat-server
 COPY . .
 RUN go get ./...

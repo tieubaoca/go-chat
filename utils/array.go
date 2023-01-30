@@ -9,12 +9,11 @@ func ContainsString(slice []string, item string) bool {
 	return false
 }
 
-func ArrayRemoveElement(slice interface{}, ele interface{}) interface{} {
-	aSlice := slice.([]interface{})
-	for i, v := range aSlice {
+func ArrayIntRemoveElement(slice []int, ele int) []int {
+	for i, v := range slice {
 		if v == ele {
-			slice = append(aSlice[:i], aSlice[i+1:]...)
+			slice = append(slice[:i], slice[i+1:]...)
 		}
 	}
-	return aSlice
+	return slice
 }
