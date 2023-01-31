@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/mux"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
@@ -13,78 +14,108 @@ import (
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 	"github.com/tieubaoca/go-chat-server/utils/log"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func FindMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+func FindMessagesByChatRoomId(c *gin.Context) {
+	vars := mux.Vars(c.Request)
 	chatRoomId, ok := vars["chatRoomId"]
 	if !ok {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
-		w.WriteHeader(http.StatusBadRequest)
-		w.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
 	}
 	chatRoom, err := services.FindChatRoomById(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusNoContent, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
 		log.ErrorLogger.Println(types.ErrorNotRoomMember)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorNotRoomMember,
+			Data:    "",
+		})
 		return
 	}
 
 	messages, err := services.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err)
+		c.JSON(http.StatusNoContent, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	response.Res(w, types.StatusSuccess, messages, "")
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "",
+		Data:    messages,
+	})
 }
 
-func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
+func PaginationMessagesByChatRoomId(c *gin.Context) {
 	var pagination request.MessagePaginationReq
-	err := json.NewDecoder(r.Body).Decode(&pagination)
+	err := json.NewDecoder(c.Request.Body).Decode(&pagination)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 	}
 
 	chatRoom, err := services.FindChatRoomById(pagination.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusNoContent, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
 
 	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
 		log.ErrorLogger.Println(types.ErrorNotRoomMember)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, types.ErrorNotRoomMember)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorNotRoomMember,
+			Data:    "",
+		})
 		return
 	}
 
@@ -95,33 +126,46 @@ func PaginationMessagesByChatRoomId(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err)
+		c.JSON(http.StatusNoContent, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	response.Res(w, types.StatusSuccess, messages, "")
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "",
+		Data:    messages,
+	})
 }
 
-func InsertMessage(w http.ResponseWriter, r *http.Request) {
+func InsertMessage(c *gin.Context) {
 	var message models.Message
-	err := json.NewDecoder(r.Body).Decode(&message)
+	err := json.NewDecoder(c.Request.Body).Decode(&message)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	result, err := services.InsertMessage(bson.M{
-		"chatRoom": message.ChatRoom,
-		"sender":   message.Sender,
-		"content":  message.Content,
-		"createAt": primitive.NewDateTimeFromTime(time.Now()),
+	message.CreateAt = primitive.NewDateTimeFromTime(time.Now())
+	result, err := services.InsertMessage(message)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusNoContent, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "",
+		Data:    result,
 	})
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, types.StatusError, nil, err.Error())
-		return
-	}
-	response.Res(w, types.StatusSuccess, result, "")
 }

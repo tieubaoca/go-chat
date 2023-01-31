@@ -3,7 +3,9 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
@@ -48,60 +50,102 @@ import (
 // 	response.Res(w, types.StatusSuccess, user, "Find user by id successfully")
 // }
 
-func Logout(w http.ResponseWriter, r *http.Request) {
+func Logout(c *gin.Context) {
 
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(
+			http.StatusUnauthorized,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
 		return
 	}
 
-	http.SetCookie(
-		w,
-		&http.Cookie{
-			Name: "access-token",
-			Path: "/",
-		},
+	c.SetCookie(
+		"access-token",
+		"",
+		-1,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		true,
 	)
-	http.SetCookie(
-		w,
-		&http.Cookie{
-			Name: "refresh-token",
-			Path: "/",
-		},
+	c.SetCookie(
+		"refresh-token",
+		"",
+		-1,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		true,
 	)
 	services.Logout(utils.GetSaIdFromToken(token), utils.GetSessionIdFromToken(token))
-	response.Res(w, types.StatusSuccess, nil, "")
+	c.JSON(
+		http.StatusOK,
+		response.ResponseData{
+			Status:  types.StatusSuccess,
+			Message: "Logout successfully",
+			Data:    "",
+		},
+	)
 }
 
-func PaginationOnlineFriend(w http.ResponseWriter, r *http.Request) {
-	tokenString := utils.GetAccessTokenByReq(r)
+func PaginationOnlineFriend(c *gin.Context) {
+	tokenString := utils.GetAccessTokenByReq(c.Request)
 	token, err := utils.ParseUnverified(tokenString)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(
+			http.StatusUnauthorized,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
 		return
 	}
 	saId := utils.GetSaIdFromToken(token)
 
 	var paginationReq request.PaginationOnlineFriendReq
-	err = json.NewDecoder(r.Body).Decode(&paginationReq)
+	err = json.NewDecoder(c.Request.Body).Decode(&paginationReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(
+			http.StatusBadRequest,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
 		return
 	}
 
 	users, err := services.PaginationOnlineFriends(saId, paginationReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusNoContent)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(
+			http.StatusNoContent,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
 		return
 	}
-	response.Res(w, types.StatusSuccess, users, "")
+	c.JSON(
+		http.StatusOK,
+		response.ResponseData{
+			Status:  types.StatusSuccess,
+			Message: "Pagination online friends successfully",
+			Data:    users,
+		},
+	)
 }

@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"log"
 	"os"
 )
@@ -12,7 +13,7 @@ var (
 	FatalLogger = log.New(os.Stdout, "FATAL: ", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
-func New(file *os.File) {
+func New(file io.Writer) {
 	InfoLogger.SetOutput(file)
 	WarnLogger.SetOutput(file)
 	ErrorLogger.SetOutput(file)

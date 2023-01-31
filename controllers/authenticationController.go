@@ -3,8 +3,9 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
-	"time"
+	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
@@ -12,73 +13,101 @@ import (
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-func Authentication(w http.ResponseWriter, r *http.Request) {
-	tokenString := utils.GetAccessTokenByReq(r)
+func Authentication(c *gin.Context) {
+	tokenString := utils.GetAccessTokenByReq(c.Request)
 	if tokenString == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, types.ErrorTokenEmpty)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorTokenEmpty,
+			Data:    "",
+		})
 		return
 	}
 	token, err := utils.ParseUnverified(tokenString)
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	response.Res(w, types.StatusSuccess, token.Claims, "")
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "OK",
+		Data:    token.Claims,
+	})
 }
 
-func GetAccessToken(w http.ResponseWriter, r *http.Request) {
+func GetAccessToken(c *gin.Context) {
 	var getAccTokenReq request.GetAccessTokenReq
-	err := json.NewDecoder(r.Body).Decode(&getAccTokenReq)
+	err := json.NewDecoder(c.Request.Body).Decode(&getAccTokenReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
 		return
 	}
 	if getAccTokenReq.Username == "" || getAccTokenReq.Password == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Res(w, types.StatusError, nil, types.ErrorInvalidInput)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
 		return
 	}
 	accessToken, refreshToken, err := services.GetAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    "access-token",
-		Value:   accessToken,
-		Expires: time.Now().Add(24 * time.Hour),
-		Path:    "/",
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:    "refresh-token",
-		Value:   refreshToken,
-		Expires: time.Now().Add(24 * time.Hour),
-		Path:    "/",
-	})
+	c.SetCookie(
+		"access-token",
+		accessToken,
+		10*60,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		false,
+	)
+	c.SetCookie(
+		"refresh-token",
+		refreshToken,
+		10*60,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		false,
+	)
 	_, err = utils.Parse(accessToken)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		response.Res(w, types.StatusError, nil, err.Error())
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
 
-	response.Res(
-		w, types.StatusSuccess,
-		bson.M{
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "OK",
+		Data: map[string]string{
 			"access-token":  accessToken,
 			"refresh-token": refreshToken,
 		},
-		"",
-	)
+	})
 
 }
 

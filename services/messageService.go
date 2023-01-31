@@ -34,15 +34,21 @@ func FindMessagesByChatRoomId(chatRoomId string) ([]models.Message, error) {
 	return messages, nil
 }
 
-func InsertMessage(message interface{}) (*mongo.InsertOneResult, error) {
+func InsertMessage(message models.Message) (*mongo.InsertOneResult, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
+
 	coll := db.Collection(models.MessageCollection)
-	return coll.InsertOne(context.TODO(), message)
+	return coll.InsertOne(context.TODO(), bson.M{
+		"chatRoom": message.ChatRoom,
+		"sender":   message.Sender,
+		"content":  message.Content,
+		"createAt": message.CreateAt,
+	})
 }
 
 func PaginationMessagesByChatRoomId(chatRoomId string, limit int64, skip int64) ([]models.Message, error) {

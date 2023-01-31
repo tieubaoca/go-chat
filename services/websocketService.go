@@ -5,6 +5,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/types"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -56,7 +56,7 @@ func InitWebSocket() {
 }
 
 // / HandleWebSocket handles the websocket connection
-func HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string, sessionId string) {
+func HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -109,7 +109,6 @@ func HandleEpoll() {
 			continue
 		}
 		for _, fd := range fds {
-			log.InfoLogger.Println("Read from fd: ", fd)
 			client, ok := wsClients[fd]
 			if !ok {
 				log.ErrorLogger.Println("Client not found")
@@ -172,12 +171,14 @@ func handleMessage(event response.WebSocketResponse) {
 		}
 		return
 	}
-	_, err = InsertMessage(bson.M{
-		"chatRoom": msg["chatRoom"].(string),
-		"sender":   event.Sender,
-		"content":  msg["content"].(string),
-		"createAt": primitive.NewDateTimeFromTime(time.Now()),
-	})
+	message := models.Message{
+		ChatRoom: msg["chatRoom"].(string),
+		Sender:   event.Sender,
+		Content:  msg["content"].(string),
+		CreateAt: primitive.NewDateTimeFromTime(time.Now()),
+	}
+	r, err := InsertMessage(message)
+	message.Id = r.InsertedID.(primitive.ObjectID)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
@@ -189,7 +190,7 @@ func handleMessage(event response.WebSocketResponse) {
 			ws.Conn.WriteJSON(response.WebSocketResponse{
 				EventType:    types.WebsocketEventTypeMessage,
 				Sender:       event.Sender,
-				EventPayload: msg["content"].(string),
+				EventPayload: message,
 			})
 
 		}

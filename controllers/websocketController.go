@@ -3,20 +3,30 @@ package controllers
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tieubaoca/go-chat-server/dto/response"
+	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+func HandleWebSocket(c *gin.Context) {
 
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(r))
+	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
+		c.JSON(
+			http.StatusUnauthorized,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
 		return
 	}
 
-	services.HandleWebSocket(w, r, utils.GetSaIdFromToken(token), utils.GetSessionIdFromToken(token))
+	services.HandleWebSocket(c.Writer, c.Request, utils.GetSaIdFromToken(token))
 }

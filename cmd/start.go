@@ -4,8 +4,10 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"io"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/go-chat-server/app"
@@ -28,7 +30,8 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			os.Exit(1)
 		}
-		log.New(file)
+		log.New(io.MultiWriter(os.Stdout, file))
+		gin.DefaultWriter = io.MultiWriter(os.Stdout, file)
 		if godotenv.Load() != nil {
 			log.FatalLogger.Fatal("Error loading .env file")
 		}
