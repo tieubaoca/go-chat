@@ -45,10 +45,6 @@ func InitWebSocket() {
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
-		Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
-			log.ErrorLogger.Println("Websocket error: ", reason)
-			response.Res(w, types.StatusError, nil, reason.Error())
-		},
 	}
 	broadcast = make(chan response.WebSocketResponse)
 	go HandleEpoll()
@@ -198,18 +194,18 @@ func handleMessage(event response.WebSocketResponse) {
 
 }
 
-func Logout(saId string, sessionId string) {
+func Logout(saId string) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	// if _, ok := wsClients[saId]; ok {
-	// 	ws, ok := wsClients[saId][sessionId]
-	// 	if ok {
-	// 		ws.Close()
-	// 		delete(wsClients[saId], sessionId)
-	// 	}
-	// }
+	if _, ok := wsFd[saId]; ok {
+		for _, fd := range wsFd[saId] {
+			wsClients[fd].Conn.Close()
+			epoll.Remove(wsClients[fd].Conn)
+			delete(wsClients, fd)
+		}
+	}
 }

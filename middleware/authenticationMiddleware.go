@@ -20,7 +20,7 @@ func JwtMiddleware(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	_, err := utils.Parse(accessTokenString)
+	_, err := utils.JWTSaasParse(accessTokenString)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  "Error",

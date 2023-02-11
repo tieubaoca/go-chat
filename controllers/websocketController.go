@@ -14,19 +14,15 @@ import (
 
 func HandleWebSocket(c *gin.Context) {
 
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(
-			http.StatusUnauthorized,
-			response.ResponseData{
-				Status:  types.StatusError,
-				Message: err.Error(),
-				Data:    "",
-			},
-		)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
 		return
 	}
-
-	services.HandleWebSocket(c.Writer, c.Request, utils.GetSaIdFromToken(token))
+	services.HandleWebSocket(c.Writer, c.Request, saId)
 }

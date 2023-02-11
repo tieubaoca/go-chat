@@ -15,25 +15,40 @@ import (
 func Start() {
 
 	r := gin.Default()
+	r.POST("/saas/api/login", controllers.GetAccessToken)
+
 	authorized := r.Group("/saas/api")
 	authorized.Use(middleware.JwtMiddleware)
 	authorized.GET("/ws", controllers.HandleWebSocket)
-
 	authorized.POST("/auth", controllers.Authentication)
-	r.POST("/saas/api/get-access-token", controllers.GetAccessToken)
 
-	authorized.GET("/chat-room/id/{id}", controllers.FindChatRoomById)
-	authorized.GET("/chat-room/all", controllers.FindChatRooms)
-	authorized.POST("/chat-room/dm/members", controllers.FindDMByMembers)
-	authorized.POST("/chat-room/dm", controllers.CreateDMRoom)
-	authorized.POST("/chat-room/group", controllers.CreateNewGroupChat)
-	authorized.POST("/chat-room/group/members", controllers.FindGroupsByMembers)
+	chatRoom := r.Group("/saas/api/chat-room")
+	chatRoom.Use(middleware.JwtMiddleware)
+	{
+		chatRoom.GET("/id/:id", controllers.FindChatRoomById)
+		chatRoom.GET("/all", controllers.FindChatRooms)
+		chatRoom.POST("/dm/members", controllers.FindDMByMembers)
+		chatRoom.POST("/dm", controllers.CreateDMRoom)
+		chatRoom.POST("/group", controllers.CreateNewGroupChat)
+		chatRoom.POST("/group/members", controllers.FindGroupsByMembers)
+		chatRoom.POST("/group/add-member", controllers.AddMemberToGroup)
+		chatRoom.POST("/group/remove-member", controllers.RemoveMemberFromGroup)
+		chatRoom.POST("/group/leave/:chatRoomId", controllers.LeaveGroup)
+	}
 
-	authorized.POST("/user/online/pagination", controllers.PaginationOnlineFriend)
-	authorized.POST("/saas/api/user/logout", controllers.Logout)
+	user := r.Group("/saas/api/user")
+	user.Use(middleware.JwtMiddleware)
+	{
+		user.POST("/online/pagination", controllers.PaginationOnlineFriend)
+		user.POST("/logout", controllers.Logout)
+	}
 
-	authorized.GET("/message/chat-room/{chatRoomId}", controllers.FindMessagesByChatRoomId)
-	authorized.POST("/message/pagination", controllers.PaginationMessagesByChatRoomId)
+	message := r.Group("/saas/api/message")
+	message.Use(middleware.JwtMiddleware)
+	{
+		message.GET("/chat-room/:chatRoomId", controllers.FindMessagesByChatRoomId)
+		message.POST("/pagination", controllers.PaginationMessagesByChatRoomId)
+	}
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))
 	port := os.Getenv("SERVER_PORT")

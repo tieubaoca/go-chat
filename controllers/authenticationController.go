@@ -10,7 +10,6 @@ import (
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 )
@@ -25,7 +24,7 @@ func Authentication(c *gin.Context) {
 		})
 		return
 	}
-	token, err := utils.ParseUnverified(tokenString)
+	token, err := utils.JWTParseUnverified(tokenString)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  types.StatusError,
@@ -61,7 +60,7 @@ func GetAccessToken(c *gin.Context) {
 		})
 		return
 	}
-	accessToken, refreshToken, err := services.GetAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
+	accessToken, refreshToken, err := utils.GetSaasAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -71,6 +70,7 @@ func GetAccessToken(c *gin.Context) {
 		})
 		return
 	}
+
 	c.SetCookie(
 		"access-token",
 		accessToken,
@@ -89,7 +89,7 @@ func GetAccessToken(c *gin.Context) {
 		false,
 		false,
 	)
-	_, err = utils.Parse(accessToken)
+	_, err = utils.JWTSaasParse(accessToken)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -110,30 +110,3 @@ func GetAccessToken(c *gin.Context) {
 	})
 
 }
-
-// func RefreshAccessToken(w http.ResponseWriter, r *http.Request) {
-// 	accessTokenCookie, err := r.Cookie("access-token")
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusUnauthorized)
-// 		response.Res(w, types.StatusError, nil, err.Error())
-// 		return
-// 	}
-// 	accessToken := accessTokenCookie.Value
-// 	if accessToken == "" {
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, types.StatusError, nil, "Access token is empty")
-// 		return
-// 	}
-// 	refreshedAccessToken, err := services.RefreshAccessToken(accessToken)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		response.Res(w, types.StatusError, nil, err.Error())
-// 		return
-// 	}
-// 	http.SetCookie(w, &http.Cookie{
-// 		Name:    "access_token",
-// 		Value:   refreshedAccessToken,
-// 		Expires: time.Now().Add(24 * time.Hour),
-// 	})
-// 	response.Res(w, types.StatusSuccess, nil, "Refresh access token successfully")
-// }

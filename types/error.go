@@ -8,4 +8,5 @@ const (
 	ErrorTokenEmpty    = "Token is empty"
 	ErrorInvalidInput  = "Invalid input"
 	ErrorNotRoomMember = "Not room member"
+	ErrorUnauthorized  = "Unauthorized"
 )

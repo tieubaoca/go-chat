@@ -15,56 +15,7 @@ import (
 	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-// func FindUserByUsername(w http.ResponseWriter, r *http.Request) {
-// 	vars := mux.Vars(r)
-// 	username, ok := vars["username"]
-// 	log.Println(username)
-// 	if !ok {
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, types.StatusError, nil, "Username is empty")
-// 		return
-// 	}
-// 	user, err := services.FindUserByUsername(username)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusNoContent)
-// 		response.Res(w, types.StatusError, nil, err.Error())
-// 		return
-// 	}
-// 	response.Res(w, types.StatusSuccess, user, "Find user by username successfully")
-// }
-
-// func FindUserById(w http.ResponseWriter, r *http.Request) {
-// 	vars := mux.Vars(r)
-// 	id, ok := vars["id"]
-// 	if !ok {
-// 		w.WriteHeader(http.StatusBadRequest)
-// 		response.Res(w, types.StatusError, nil, "Id is empty")
-// 		return
-// 	}
-// 	user, err := services.FindUserById(id)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusNoContent)
-// 		response.Res(w, types.StatusError, nil, err.Error())
-// 		return
-// 	}
-// 	response.Res(w, types.StatusSuccess, user, "Find user by id successfully")
-// }
-
 func Logout(c *gin.Context) {
-
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(
-			http.StatusUnauthorized,
-			response.ResponseData{
-				Status:  types.StatusError,
-				Message: err.Error(),
-				Data:    "",
-			},
-		)
-		return
-	}
 
 	c.SetCookie(
 		"access-token",
@@ -84,7 +35,17 @@ func Logout(c *gin.Context) {
 		false,
 		true,
 	)
-	services.Logout(utils.GetSaIdFromToken(token), utils.GetSessionIdFromToken(token))
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	services.Logout(saId)
 	c.JSON(
 		http.StatusOK,
 		response.ResponseData{
@@ -97,23 +58,8 @@ func Logout(c *gin.Context) {
 
 func PaginationOnlineFriend(c *gin.Context) {
 	tokenString := utils.GetAccessTokenByReq(c.Request)
-	token, err := utils.ParseUnverified(tokenString)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(
-			http.StatusUnauthorized,
-			response.ResponseData{
-				Status:  types.StatusError,
-				Message: err.Error(),
-				Data:    "",
-			},
-		)
-		return
-	}
-	saId := utils.GetSaIdFromToken(token)
-
 	var paginationReq request.PaginationOnlineFriendReq
-	err = json.NewDecoder(c.Request.Body).Decode(&paginationReq)
+	err := json.NewDecoder(c.Request.Body).Decode(&paginationReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(
@@ -127,7 +73,8 @@ func PaginationOnlineFriend(c *gin.Context) {
 		return
 	}
 
-	users, err := services.PaginationOnlineFriends(saId, paginationReq)
+	users, err := utils.GetListFriendInfo(tokenString, paginationReq)
+	log.InfoLogger.Println(users)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/mux"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
@@ -18,9 +17,8 @@ import (
 )
 
 func FindMessagesByChatRoomId(c *gin.Context) {
-	vars := mux.Vars(c.Request)
-	chatRoomId, ok := vars["chatRoomId"]
-	if !ok {
+	chatRoomId := c.Param("chatRoomId")
+	if chatRoomId == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
 			Status:  types.StatusError,
@@ -38,10 +36,11 @@ func FindMessagesByChatRoomId(c *gin.Context) {
 		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -49,7 +48,7 @@ func FindMessagesByChatRoomId(c *gin.Context) {
 		return
 	}
 
-	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+	if !utils.ContainsString(chatRoom.Members, saId) {
 		log.ErrorLogger.Println(types.ErrorNotRoomMember)
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  types.StatusError,
@@ -98,18 +97,17 @@ func PaginationMessagesByChatRoomId(c *gin.Context) {
 		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
 		})
 		return
 	}
-
-	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+	if !utils.ContainsString(chatRoom.Members, saId) {
 		log.ErrorLogger.Println(types.ErrorNotRoomMember)
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  types.StatusError,

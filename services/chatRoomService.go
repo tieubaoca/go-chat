@@ -112,15 +112,16 @@ func InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
 	return coll.InsertOne(
 		context.TODO(),
 		bson.M{
-			"name":    chatRoom.Name,
-			"type":    chatRoom.Type,
-			"owner":   chatRoom.Owner,
-			"members": chatRoom.Members,
+			"name":      chatRoom.Name,
+			"type":      chatRoom.Type,
+			"owner":     chatRoom.Owner,
+			"isBlocked": false,
+			"members":   chatRoom.Members,
 		},
 	)
 }
 
-func AddMemberToChatRoom(chatRoomId string, member string) (*mongo.UpdateResult, error) {
+func AddMemberToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -137,7 +138,32 @@ func AddMemberToChatRoom(chatRoomId string, member string) (*mongo.UpdateResult,
 		return nil, errors.New("Cannot add member to DM")
 	}
 
-	return coll.UpdateOne(context.TODO(), bson.D{{"_id", chatRoom.Id}}, bson.D{
-		{"$addToSet", bson.D{{"members", member}}},
+	return coll.UpdateOne(context.TODO(), bson.M{"_id": chatRoom.Id}, bson.M{
+		"$addToSet": bson.M{"members": bson.M{"$each": members}},
 	})
+}
+
+func RemoveMemberFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	coll := db.Collection(models.ChatRoomCollection)
+	chatRoom, err := FindChatRoomById(chatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		return nil, err
+	}
+	if chatRoom.Type == models.ChatRoomTypeDM {
+		return nil, errors.New("Cannot remove member from DM")
+	}
+	return coll.UpdateOne(
+		context.TODO(),
+		bson.M{"_id": chatRoom.Id},
+		bson.M{
+			"$pull": bson.M{"members": bson.M{"$in": members}},
+		},
+	)
 }

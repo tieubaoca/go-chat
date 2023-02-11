@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/mux"
+	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/services"
@@ -16,9 +16,8 @@ import (
 )
 
 func FindChatRoomById(c *gin.Context) {
-	vars := mux.Vars(c.Request)
-	id, ok := vars["id"]
-	if !ok {
+	id := c.Param("id")
+	if id == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
 			Status:  types.StatusError,
@@ -27,6 +26,7 @@ func FindChatRoomById(c *gin.Context) {
 		})
 		return
 	}
+	log.InfoLogger.Println("ID:", id)
 	chatRoom, err := services.FindChatRoomById(id)
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -37,8 +37,17 @@ func FindChatRoomById(c *gin.Context) {
 		})
 		return
 	}
-	token, _ := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
-	if !utils.ContainsString(chatRoom.Members, utils.GetSaIdFromToken(token)) {
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	if !utils.ContainsString(chatRoom.Members, saId) {
 		log.ErrorLogger.Println(types.ErrorNotRoomMember)
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  types.StatusError,
@@ -55,17 +64,17 @@ func FindChatRoomById(c *gin.Context) {
 }
 
 func FindChatRooms(c *gin.Context) {
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
 		})
 		return
 	}
-	chatRooms, err := services.FindChatRoomsByMember(utils.GetSaIdFromToken(token))
+	chatRooms, err := services.FindChatRoomsByMember(saId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -84,7 +93,8 @@ func FindChatRooms(c *gin.Context) {
 
 func FindDMByMembers(c *gin.Context) {
 	var member string
-	err := json.NewDecoder(c.Request.Body).Decode(&member)
+	// err := json.NewDecoder(c.Request.Body).Decode(&member)
+	err := c.ShouldBindJSON(&member)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -103,10 +113,10 @@ func FindDMByMembers(c *gin.Context) {
 		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -114,7 +124,7 @@ func FindDMByMembers(c *gin.Context) {
 		return
 	}
 
-	members := []string{member, utils.GetSaIdFromToken(token)}
+	members := []string{member, saId}
 
 	chatRoom, err := services.FindDMByMembers(members)
 	if err != nil {
@@ -140,10 +150,11 @@ func FindGroupsByMembers(c *gin.Context) {
 	if err != nil {
 		members = make([]string, 0)
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -151,7 +162,7 @@ func FindGroupsByMembers(c *gin.Context) {
 		return
 	}
 
-	chatRooms, err := services.FindGroupsByMembers(append(members, utils.GetSaIdFromToken(token)))
+	chatRooms, err := services.FindGroupsByMembers(append(members, saId))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -183,8 +194,25 @@ func CreateNewGroupChat(c *gin.Context) {
 		return
 	}
 	chatRoom.Type = models.ChatRoomTypeGroup
-	token, _ := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
-	chatRoom.Owner = utils.GetSaIdFromToken(token)
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+	}
+	chatRoom.Owner, err = utils.GetSaIdFromToken(saId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
 
 	result, err := services.InsertChatRoom(chatRoom)
 	if err != nil {
@@ -224,7 +252,33 @@ func CreateDMRoom(c *gin.Context) {
 		})
 		return
 	}
-	token, err := utils.ParseUnverified(utils.GetAccessTokenByReq(c.Request))
+	friends, err := utils.GetAllFriends(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+
+	var friendIds []string
+	for _, friend := range friends {
+		friendIds = append(friendIds, friend.(map[string]interface{})["id"].(string))
+	}
+
+	if !utils.ContainsString(friendIds, member) {
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
+		return
+	}
+
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusUnauthorized, response.ResponseData{
@@ -237,7 +291,7 @@ func CreateDMRoom(c *gin.Context) {
 
 	members := []string{
 		member,
-		utils.GetSaIdFromToken(token),
+		saId,
 	}
 	sort.Strings(members)
 	result, err := services.InsertChatRoom(
@@ -247,6 +301,179 @@ func CreateDMRoom(c *gin.Context) {
 			Members: members,
 		},
 	)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "OK",
+		Data:    result,
+	})
+}
+
+func AddMemberToGroup(c *gin.Context) {
+	var req request.AddMemReq
+	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
+		return
+	}
+	chatRoom, err := services.FindChatRoomById(req.ChatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	if chatRoom.Owner != saId {
+		log.ErrorLogger.Println(types.ErrorUnauthorized)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorUnauthorized,
+			Data:    "",
+		})
+		return
+	}
+	result, err := services.AddMemberToChatRoom(req.ChatRoomId, req.SaIds)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "OK",
+		Data:    result,
+	})
+}
+
+func RemoveMemberFromGroup(c *gin.Context) {
+	var req request.RemoveMemReq
+	err := c.BindJSON(&req)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
+		return
+	}
+	chatRoom, err := services.FindChatRoomById(req.ChatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	if chatRoom.Owner != saId {
+		log.ErrorLogger.Println(types.ErrorUnauthorized)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorUnauthorized,
+			Data:    "",
+		})
+		return
+	}
+	result, err := services.RemoveMemberFromChatRoom(req.ChatRoomId, req.SaIds)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.ResponseData{
+		Status:  types.StatusSuccess,
+		Message: "OK",
+		Data:    result,
+	})
+}
+
+func LeaveGroup(c *gin.Context) {
+	chatRoomId := c.Param("chatRoomId")
+	if chatRoomId == "" {
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
+		return
+	}
+	chatRoom, err := services.FindChatRoomById(chatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	if utils.ContainsString(chatRoom.Members, saId) {
+		log.ErrorLogger.Println(types.ErrorUnauthorized)
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorUnauthorized,
+			Data:    "",
+		})
+		return
+	}
+	result, err := services.RemoveMemberFromChatRoom(chatRoomId, []string{saId})
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
