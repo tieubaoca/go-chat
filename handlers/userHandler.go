@@ -1,62 +1,34 @@
-package controllers
+package handlers
 
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-func Logout(c *gin.Context) {
-
-	c.SetCookie(
-		"access-token",
-		"",
-		-1,
-		"/",
-		os.Getenv("DOMAIN"),
-		false,
-		true,
-	)
-	c.SetCookie(
-		"refresh-token",
-		"",
-		-1,
-		"/",
-		os.Getenv("DOMAIN"),
-		false,
-		true,
-	)
-	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusInternalServerError, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-	services.Logout(saId)
-	c.JSON(
-		http.StatusOK,
-		response.ResponseData{
-			Status:  types.StatusSuccess,
-			Message: "Logout successfully",
-			Data:    "",
-		},
-	)
+type UserHandler interface {
+	PaginationOnlineFriend(c *gin.Context)
 }
 
-func PaginationOnlineFriend(c *gin.Context) {
+type userHandler struct {
+	userService services.UserService
+}
+
+func NewUserHandler(userService services.UserService) *userHandler {
+	return &userHandler{
+		userService: userService,
+	}
+}
+
+func (h *userHandler) PaginationOnlineFriend(c *gin.Context) {
 	tokenString := utils.GetAccessTokenByReq(c.Request)
 	var paginationReq request.PaginationOnlineFriendReq
 	err := json.NewDecoder(c.Request.Body).Decode(&paginationReq)
@@ -74,7 +46,6 @@ func PaginationOnlineFriend(c *gin.Context) {
 	}
 
 	users, err := utils.GetListFriendInfo(tokenString, paginationReq)
-	log.InfoLogger.Println(users)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(
@@ -87,12 +58,15 @@ func PaginationOnlineFriend(c *gin.Context) {
 		)
 		return
 	}
+	friendStatus, err := h.userService.FindUserStatusInUserList(
+		users,
+	)
 	c.JSON(
 		http.StatusOK,
 		response.ResponseData{
 			Status:  types.StatusSuccess,
 			Message: "Pagination online friends successfully",
-			Data:    users,
+			Data:    friendStatus,
 		},
 	)
 }

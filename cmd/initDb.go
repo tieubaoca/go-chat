@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tieubaoca/go-chat-server/services"
+	"github.com/tieubaoca/go-chat-server/db"
 )
 
 // initDbCmd represents the initDb command
@@ -21,12 +21,11 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		services.InitDbClient(
+
+		db.InitCollections(db.NewDbClient(
 			os.Getenv("MONGO_CONNECTION_STRING"),
 			os.Getenv("MONGO_DB"),
-		)
-
-		services.InitCollections()
+		))
 	},
 }
 

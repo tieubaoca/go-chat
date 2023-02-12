@@ -1,7 +1,6 @@
-package controllers
+package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -16,7 +15,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func FindMessagesByChatRoomId(c *gin.Context) {
+type MessageHandler interface {
+	FindMessagesByChatRoomId(c *gin.Context)
+	PaginationMessagesByChatRoomId(c *gin.Context)
+	InsertMessage(c *gin.Context)
+}
+
+type messageHandler struct {
+	messageService  services.MessageService
+	chatRoomService services.ChatRoomService
+}
+
+func NewMessageHandler(
+	messageService services.MessageService,
+	chatRoomService services.ChatRoomService,
+) *messageHandler {
+	return &messageHandler{
+		messageService:  messageService,
+		chatRoomService: chatRoomService,
+	}
+}
+
+func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 	chatRoomId := c.Param("chatRoomId")
 	if chatRoomId == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
@@ -26,7 +46,7 @@ func FindMessagesByChatRoomId(c *gin.Context) {
 			Data:    "",
 		})
 	}
-	chatRoom, err := services.FindChatRoomById(chatRoomId)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusNoContent, response.ResponseData{
@@ -58,7 +78,7 @@ func FindMessagesByChatRoomId(c *gin.Context) {
 		return
 	}
 
-	messages, err := services.FindMessagesByChatRoomId(chatRoomId)
+	messages, err := h.messageService.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusNoContent, response.ResponseData{
@@ -75,9 +95,9 @@ func FindMessagesByChatRoomId(c *gin.Context) {
 	})
 }
 
-func PaginationMessagesByChatRoomId(c *gin.Context) {
+func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 	var pagination request.MessagePaginationReq
-	err := json.NewDecoder(c.Request.Body).Decode(&pagination)
+	err := c.ShouldBindJSON(&pagination)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -87,7 +107,7 @@ func PaginationMessagesByChatRoomId(c *gin.Context) {
 		})
 	}
 
-	chatRoom, err := services.FindChatRoomById(pagination.ChatRoomId)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(pagination.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusNoContent, response.ResponseData{
@@ -117,7 +137,7 @@ func PaginationMessagesByChatRoomId(c *gin.Context) {
 		return
 	}
 
-	messages, err := services.PaginationMessagesByChatRoomId(
+	messages, err := h.messageService.PaginationMessagesByChatRoomId(
 		pagination.ChatRoomId,
 		pagination.Limit,
 		pagination.Skip,
@@ -138,9 +158,9 @@ func PaginationMessagesByChatRoomId(c *gin.Context) {
 	})
 }
 
-func InsertMessage(c *gin.Context) {
+func (h *messageHandler) InsertMessage(c *gin.Context) {
 	var message models.Message
-	err := json.NewDecoder(c.Request.Body).Decode(&message)
+	err := c.ShouldBindJSON(&message)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -151,7 +171,7 @@ func InsertMessage(c *gin.Context) {
 		return
 	}
 	message.CreateAt = primitive.NewDateTimeFromTime(time.Now())
-	result, err := services.InsertMessage(message)
+	result, err := h.messageService.InsertMessage(message)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusNoContent, response.ResponseData{

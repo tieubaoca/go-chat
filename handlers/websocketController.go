@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"net/http"
@@ -12,7 +12,21 @@ import (
 	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-func HandleWebSocket(c *gin.Context) {
+type WebSocketHandler interface {
+	HandleWebSocket(c *gin.Context)
+}
+
+type webSocketHandler struct {
+	websocketService services.WebSocketService
+}
+
+func NewWebSocketHandler(websocketService services.WebSocketService) *webSocketHandler {
+	return &webSocketHandler{
+		websocketService: websocketService,
+	}
+}
+
+func (h *webSocketHandler) HandleWebSocket(c *gin.Context) {
 
 	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
@@ -24,5 +38,5 @@ func HandleWebSocket(c *gin.Context) {
 		})
 		return
 	}
-	services.HandleWebSocket(c.Writer, c.Request, saId)
+	h.websocketService.HandleWebSocket(c.Writer, c.Request, saId)
 }

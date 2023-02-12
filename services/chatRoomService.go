@@ -1,169 +1,54 @@
 package services
 
 import (
-	"context"
-	"errors"
-
-	"github.com/tieubaoca/go-chat-server/utils/log"
+	"github.com/tieubaoca/go-chat-server/repositories"
 
 	"github.com/tieubaoca/go-chat-server/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func FindChatRoomById(id string) (models.ChatRoom, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	var result models.ChatRoom
-	obId, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return result, err
-	}
-	err = coll.FindOne(context.TODO(), bson.D{{"_id", obId}}).Decode(&result)
-	return result, err
+type ChatRoomService interface {
+	FindChatRoomById(id string) (models.ChatRoom, error)
+	FindChatRoomsBySaId(saId string) ([]models.ChatRoom, error)
+	InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error)
+	AddMembersToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
+	RemoveMembersFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
+	FindDMByMembers(members []string) (models.ChatRoom, error)
+	FindGroupsChatByMembers(members []string) ([]models.ChatRoom, error)
 }
 
-func FindChatRoomsByMember(member string) ([]models.ChatRoom, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	cursor, err := coll.Find(context.TODO(), bson.D{{"members", member}})
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-
-	var results []models.ChatRoom
-	err = cursor.All(context.TODO(), &results)
-	return results, err
+type chatRoomService struct {
+	chatRoomRepository repositories.ChatRoomRepository
 }
 
-func FindGroupsByMembers(members []string) ([]models.ChatRoom, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	var result []models.ChatRoom
-	cursor, err := coll.Find(
-		context.TODO(),
-		bson.D{
-			{
-				"members",
-				bson.D{
-					{"$all", members},
-				},
-			},
-			{"type", models.ChatRoomTypeGroup},
-		},
-	)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return result, err
-	}
-	err = cursor.All(context.TODO(), &result)
-	return result, err
+func NewChatRoomService(chatRoomRepository repositories.ChatRoomRepository) ChatRoomService {
+	return &chatRoomService{chatRoomRepository}
 }
 
-func FindDMByMembers(members []string) (models.ChatRoom, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	var result models.ChatRoom
-	err := coll.FindOne(
-		context.TODO(),
-		bson.D{
-			{
-				"members",
-				bson.D{
-					{"$all", members},
-				},
-			},
-			{"type", models.ChatRoomTypeDM},
-		},
-	).Decode(&result)
-	return result, err
+func (s *chatRoomService) FindChatRoomById(id string) (models.ChatRoom, error) {
+	return s.chatRoomRepository.FindChatRoomById(id)
 }
 
-func InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	return coll.InsertOne(
-		context.TODO(),
-		bson.M{
-			"name":      chatRoom.Name,
-			"type":      chatRoom.Type,
-			"owner":     chatRoom.Owner,
-			"isBlocked": false,
-			"members":   chatRoom.Members,
-		},
-	)
+func (s *chatRoomService) FindChatRoomsBySaId(saId string) ([]models.ChatRoom, error) {
+	return s.chatRoomRepository.FindChatRoomBySaId(saId)
 }
 
-func AddMemberToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	chatRoom, err := FindChatRoomById(chatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-	if chatRoom.Type == models.ChatRoomTypeDM {
-		return nil, errors.New("Cannot add member to DM")
-	}
-
-	return coll.UpdateOne(context.TODO(), bson.M{"_id": chatRoom.Id}, bson.M{
-		"$addToSet": bson.M{"members": bson.M{"$each": members}},
-	})
+func (s *chatRoomService) FindGroupsChatByMembers(saIds []string) ([]models.ChatRoom, error) {
+	return s.chatRoomRepository.FindGroupChatByMembers(saIds)
 }
 
-func RemoveMemberFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	coll := db.Collection(models.ChatRoomCollection)
-	chatRoom, err := FindChatRoomById(chatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-	if chatRoom.Type == models.ChatRoomTypeDM {
-		return nil, errors.New("Cannot remove member from DM")
-	}
-	return coll.UpdateOne(
-		context.TODO(),
-		bson.M{"_id": chatRoom.Id},
-		bson.M{
-			"$pull": bson.M{"members": bson.M{"$in": members}},
-		},
-	)
+func (s *chatRoomService) FindDMByMembers(saIds []string) (models.ChatRoom, error) {
+	return s.chatRoomRepository.FindDMByMembers(saIds)
+}
+
+func (s *chatRoomService) InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error) {
+	return s.chatRoomRepository.InsertChatRoom(chatRoom)
+}
+
+func (s *chatRoomService) AddMembersToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
+	return s.chatRoomRepository.AddMembersToChatRoom(chatRoomId, members)
+}
+
+func (s *chatRoomService) RemoveMembersFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error) {
+	return s.chatRoomRepository.RemoveMembersFromChatRoom(chatRoomId, members)
 }

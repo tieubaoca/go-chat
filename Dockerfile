@@ -1,5 +1,5 @@
 FROM golang:alpine
-WORKDIR /docker/go/src/chat-server
 COPY . .
 RUN go get ./...
+RUN go run main.go initDb
 CMD ["go", "run", "main.go", "start"]

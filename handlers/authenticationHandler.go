@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"encoding/json"
@@ -10,37 +10,27 @@ import (
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
+	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 )
 
-func Authentication(c *gin.Context) {
-	tokenString := utils.GetAccessTokenByReq(c.Request)
-	if tokenString == "" {
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
-			Status:  types.StatusError,
-			Message: types.ErrorTokenEmpty,
-			Data:    "",
-		})
-		return
-	}
-	token, err := utils.JWTParseUnverified(tokenString)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-	c.JSON(http.StatusOK, response.ResponseData{
-		Status:  types.StatusSuccess,
-		Message: "OK",
-		Data:    token.Claims,
-	})
+type AuthenticationHandler interface {
+	Login(c *gin.Context)
+	logout(c *gin.Context)
 }
 
-func GetAccessToken(c *gin.Context) {
+type authenticationHandler struct {
+	websocketService services.WebSocketService
+}
+
+func NewAuthenticationHandler(websocketService services.WebSocketService) *authenticationHandler {
+	return &authenticationHandler{
+		websocketService: websocketService,
+	}
+}
+
+func (h *authenticationHandler) Login(c *gin.Context) {
 	var getAccTokenReq request.GetAccessTokenReq
 	err := json.NewDecoder(c.Request.Body).Decode(&getAccTokenReq)
 	if err != nil {
@@ -108,5 +98,45 @@ func GetAccessToken(c *gin.Context) {
 			"refresh-token": refreshToken,
 		},
 	})
+}
 
+func (h *authenticationHandler) Logout(c *gin.Context) {
+
+	c.SetCookie(
+		"access-token",
+		"",
+		-1,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		true,
+	)
+	c.SetCookie(
+		"refresh-token",
+		"",
+		-1,
+		"/",
+		os.Getenv("DOMAIN"),
+		false,
+		true,
+	)
+	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: err.Error(),
+			Data:    "",
+		})
+		return
+	}
+	h.websocketService.Logout(saId)
+	c.JSON(
+		http.StatusOK,
+		response.ResponseData{
+			Status:  types.StatusSuccess,
+			Message: "Logout successfully",
+			Data:    "",
+		},
+	)
 }

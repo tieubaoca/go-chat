@@ -6,48 +6,91 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tieubaoca/go-chat-server/controllers"
+	"github.com/tieubaoca/go-chat-server/db"
+	"github.com/tieubaoca/go-chat-server/handlers"
 	"github.com/tieubaoca/go-chat-server/middleware"
+	"github.com/tieubaoca/go-chat-server/repositories"
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/utils/log"
+	"go.mongodb.org/mongo-driver/mongo"
 )
+
+var database *mongo.Database
 
 func Start() {
 
-	r := gin.Default()
-	r.POST("/saas/api/login", controllers.GetAccessToken)
+	database = db.NewDbClient(
+		os.Getenv("MONGO_CONNECTION_STRING"),
+		os.Getenv("MONGO_DB"),
+	)
 
-	authorized := r.Group("/saas/api")
-	authorized.Use(middleware.JwtMiddleware)
-	authorized.GET("/ws", controllers.HandleWebSocket)
-	authorized.POST("/auth", controllers.Authentication)
+	userRepository := repositories.NewUserRepository(
+		database,
+	)
+	chatRoomRepository := repositories.NewChatRoomRepository(
+		database,
+	)
+	messageRepository := repositories.NewMessageRepository(
+		database,
+	)
+
+	userService := services.NewUserService(
+		userRepository,
+	)
+	chatRoomService := services.NewChatRoomService(
+		chatRoomRepository,
+	)
+	messageService := services.NewMessageService(
+		messageRepository,
+	)
+
+	websocketService := services.NewWebSocketService(
+		chatRoomRepository,
+		messageRepository,
+		userRepository,
+	)
+
+	authenticationHandler := handlers.NewAuthenticationHandler(websocketService)
+	chatRoomHandler := handlers.NewChatRoomHandler(chatRoomService)
+	messageHandler := handlers.NewMessageHandler(messageService, chatRoomService)
+	userHandler := handlers.NewUserHandler(userService)
+	websocketHandler := handlers.NewWebSocketHandler(websocketService)
+
+	r := gin.Default()
+	r.POST("/saas/api/login", authenticationHandler.Login)
+
+	authentication := r.Group("/saas/api")
+	{
+		authentication.Use(middleware.JwtMiddleware)
+		authentication.GET("/ws", websocketHandler.HandleWebSocket)
+		authentication.POST("/logout", authenticationHandler.Logout)
+	}
 
 	chatRoom := r.Group("/saas/api/chat-room")
 	chatRoom.Use(middleware.JwtMiddleware)
 	{
-		chatRoom.GET("/id/:id", controllers.FindChatRoomById)
-		chatRoom.GET("/all", controllers.FindChatRooms)
-		chatRoom.POST("/dm/members", controllers.FindDMByMembers)
-		chatRoom.POST("/dm", controllers.CreateDMRoom)
-		chatRoom.POST("/group", controllers.CreateNewGroupChat)
-		chatRoom.POST("/group/members", controllers.FindGroupsByMembers)
-		chatRoom.POST("/group/add-member", controllers.AddMemberToGroup)
-		chatRoom.POST("/group/remove-member", controllers.RemoveMemberFromGroup)
-		chatRoom.POST("/group/leave/:chatRoomId", controllers.LeaveGroup)
+		chatRoom.GET("/id/:id", chatRoomHandler.FindChatRoomById)
+		chatRoom.GET("/all", chatRoomHandler.FindChatRoomsBySaId)
+		chatRoom.POST("/dm/members", chatRoomHandler.FindDMByMember)
+		chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
+		chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
+		chatRoom.POST("/group/members", chatRoomHandler.FindGroupsByMembers)
+		chatRoom.POST("/group/add-member", chatRoomHandler.AddMemberToGroup)
+		chatRoom.POST("/group/remove-member", chatRoomHandler.RemoveMemberFromGroup)
+		chatRoom.POST("/group/leave/:chatRoomId", chatRoomHandler.LeaveGroup)
 	}
 
 	user := r.Group("/saas/api/user")
 	user.Use(middleware.JwtMiddleware)
 	{
-		user.POST("/online/pagination", controllers.PaginationOnlineFriend)
-		user.POST("/logout", controllers.Logout)
+		user.POST("/online/pagination", userHandler.PaginationOnlineFriend)
 	}
 
 	message := r.Group("/saas/api/message")
 	message.Use(middleware.JwtMiddleware)
 	{
-		message.GET("/chat-room/:chatRoomId", controllers.FindMessagesByChatRoomId)
-		message.POST("/pagination", controllers.PaginationMessagesByChatRoomId)
+		message.GET("/chat-room/:chatRoomId", messageHandler.FindMessagesByChatRoomId)
+		message.POST("/pagination", messageHandler.PaginationMessagesByChatRoomId)
 	}
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))
@@ -55,5 +98,5 @@ func Start() {
 	log.InfoLogger.Println("Server start on " + port)
 	log.FatalLogger.Fatal(http.ListenAndServe(":"+port, r))
 
-	defer services.GetDBClient().Client().Disconnect(context.TODO())
+	defer database.Client().Disconnect(context.TODO())
 }

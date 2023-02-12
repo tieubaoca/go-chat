@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tieubaoca/go-chat-server/models"
+	"github.com/tieubaoca/go-chat-server/repositories"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/types"
@@ -16,15 +17,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// mapping from session id to websocket client
-var wsFd map[string][]int
-var wsClients map[int]types.WebSocketClient
-var upgrader websocket.Upgrader
-var broadcast chan response.WebSocketResponse
-var epoll *types.Epoll
+type WebSocketService interface {
+	HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string)
+	HandleEpoll()
+	Logout(saId string)
+}
+
+type webSocketService struct {
+	chatRoomRepository repositories.ChatRoomRepository
+	messageRepository  repositories.MessageRepository
+	userRepository     repositories.UserRepository
+	epoll              *types.Epoll
+	wsFd               map[string][]int
+	wsClients          map[int]*types.WebSocketClient
+	upgrader           websocket.Upgrader
+}
 
 // / InitWebSocket initializes the websocket server
-func InitWebSocket() {
+func NewWebSocketService(
+	chatRoomRepository repositories.ChatRoomRepository,
+	messageRepository repositories.MessageRepository,
+	userRepository repositories.UserRepository,
+) *webSocketService {
 	// Increase the maximum number of open files
 	var rLimit syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
@@ -34,32 +48,36 @@ func InitWebSocket() {
 	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
 		panic(err)
 	}
-	// Init websocket client map
-	wsFd = make(map[string][]int)
-
-	wsClients = make(map[int]types.WebSocketClient)
-	epoll, _ = types.MkEpoll()
-
-	// Init websocket upgrader
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
+	epoll, err := types.MkEpoll()
+	if err != nil {
+		panic(err)
+	}
+	wsService := &webSocketService{
+		chatRoomRepository: chatRoomRepository,
+		messageRepository:  messageRepository,
+		userRepository:     userRepository,
+		epoll:              epoll,
+		wsFd:               make(map[string][]int),
+		wsClients:          make(map[int]*types.WebSocketClient),
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
 		},
 	}
-	broadcast = make(chan response.WebSocketResponse)
-	go HandleEpoll()
-	go handleWebSocketResponse()
+	go wsService.HandleEpoll()
+	return wsService
 }
 
 // / HandleWebSocket handles the websocket connection
-func HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string) {
+func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
@@ -74,24 +92,24 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string) {
 		Conn: ws,
 	}
 	// Add new client to epoll
-	fd, err := epoll.Add(client.Conn)
-	wsClients[fd] = *client
+	fd, err := s.epoll.Add(client.Conn)
+	s.wsClients[fd] = client
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
 	}
-	UpdateUserStatus(saId, true, primitive.NewDateTimeFromTime(time.Now()))
-	if _, ok := wsFd[saId]; !ok {
-		wsFd[saId] = make([]int, 0)
+	s.userRepository.UpdateUserStatus(saId, true, primitive.NewDateTimeFromTime(time.Now()))
+	if _, ok := s.wsFd[saId]; !ok {
+		s.wsFd[saId] = make([]int, 0)
 	}
-	wsFd[saId] = append(wsFd[saId], fd)
+	s.wsFd[saId] = append(s.wsFd[saId], fd)
 	ws.WriteJSON(response.WebSocketResponse{
 		EventType:    "Connected",
 		EventPayload: saId,
 	})
 }
 
-func HandleEpoll() {
+func (s *webSocketService) HandleEpoll() {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -99,13 +117,13 @@ func HandleEpoll() {
 		}
 	}()
 	for {
-		fds, err := epoll.Wait()
+		fds, err := s.epoll.Wait()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 			continue
 		}
 		for _, fd := range fds {
-			client, ok := wsClients[fd]
+			client, ok := s.wsClients[fd]
 			if !ok {
 				log.ErrorLogger.Println("Client not found")
 				continue
@@ -113,37 +131,23 @@ func HandleEpoll() {
 			msg, err := client.Read()
 			if err != nil {
 				log.ErrorLogger.Println(err)
-				epoll.Remove(wsClients[fd].Conn)
-				delete(wsClients, fd)
-				wsFd[client.SaId] = utils.ArrayIntRemoveElement(wsFd[client.SaId], fd)
-				if len(wsFd[client.SaId]) == 0 {
-					UpdateUserStatus(client.SaId, false, primitive.NewDateTimeFromTime(time.Now()))
+				s.epoll.Remove(s.wsClients[fd].Conn)
+				delete(s.wsClients, fd)
+				s.wsFd[client.SaId] = utils.ArrayIntRemoveElement(s.wsFd[client.SaId], fd)
+				if len(s.wsFd[client.SaId]) == 0 {
+					s.userRepository.UpdateUserStatus(client.SaId, false, primitive.NewDateTimeFromTime(time.Now()))
 				}
 				continue
 			}
-			broadcast <- msg
+			switch msg.EventType {
+			case types.WebsocketEventTypeMessage:
+				s.handleMessage(msg)
+			}
 		}
 	}
 }
 
-func handleWebSocketResponse() {
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.ErrorLogger.Println(err)
-		}
-	}()
-	for {
-		// Grab the next message from the broadcast channel
-		msg := <-broadcast
-		switch msg.EventType {
-		case types.WebsocketEventTypeMessage:
-			handleMessage(msg)
-		}
-	}
-}
-
-func handleMessage(event response.WebSocketResponse) {
+func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -152,13 +156,13 @@ func handleMessage(event response.WebSocketResponse) {
 	}()
 	msg := event.EventPayload.(map[string]interface{})
 	// Send it out to every client that is currently connected
-	chatRoom, err := FindChatRoomById(msg["chatRoom"].(string))
+	chatRoom, err := s.chatRoomRepository.FindChatRoomById(msg["chatRoom"].(string))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 	}
 	if !utils.ContainsString(chatRoom.Members, event.Sender) {
-		for _, fd := range wsFd[event.Sender] {
-			ws := wsClients[fd]
+		for _, fd := range s.wsFd[event.Sender] {
+			ws := s.wsClients[fd]
 			ws.Conn.WriteJSON(response.WebSocketResponse{
 				EventType:    types.WebsocketEventTypeError,
 				Sender:       "server",
@@ -173,16 +177,16 @@ func handleMessage(event response.WebSocketResponse) {
 		Content:  msg["content"].(string),
 		CreateAt: primitive.NewDateTimeFromTime(time.Now()),
 	}
-	r, err := InsertMessage(message)
+	r, err := s.messageRepository.InsertMessage(message)
 	message.Id = r.InsertedID.(primitive.ObjectID)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
 	}
 	for _, member := range chatRoom.Members {
-		fds := wsFd[member]
+		fds := s.wsFd[member]
 		for _, fd := range fds {
-			ws := wsClients[fd]
+			ws := s.wsClients[fd]
 			ws.Conn.WriteJSON(response.WebSocketResponse{
 				EventType:    types.WebsocketEventTypeMessage,
 				Sender:       event.Sender,
@@ -194,18 +198,18 @@ func handleMessage(event response.WebSocketResponse) {
 
 }
 
-func Logout(saId string) {
+func (s *webSocketService) Logout(saId string) {
 	defer func() {
 		err := recover()
 		if err != nil {
 			log.ErrorLogger.Println(err)
 		}
 	}()
-	if _, ok := wsFd[saId]; ok {
-		for _, fd := range wsFd[saId] {
-			wsClients[fd].Conn.Close()
-			epoll.Remove(wsClients[fd].Conn)
-			delete(wsClients, fd)
+	if _, ok := s.wsFd[saId]; ok {
+		for _, fd := range s.wsFd[saId] {
+			s.wsClients[fd].Conn.Close()
+			s.epoll.Remove(s.wsClients[fd].Conn)
+			delete(s.wsClients, fd)
 		}
 	}
 }

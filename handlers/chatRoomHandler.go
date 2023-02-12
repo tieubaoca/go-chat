@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"encoding/json"
@@ -15,7 +15,26 @@ import (
 	"github.com/tieubaoca/go-chat-server/utils/log"
 )
 
-func FindChatRoomById(c *gin.Context) {
+type ChatRoomHandler interface {
+	FindChatRoomById(c *gin.Context)
+	FindChatRoomsBySaId(c *gin.Context)
+	FindDMByMember(c *gin.Context)
+	CreateNewGroupChat(c *gin.Context)
+	CreateNewDMChat(c *gin.Context)
+	AddMembersToGroup(c *gin.Context)
+	RemoveMembersFromGroup(c *gin.Context)
+	LeaveGroup(c *gin.Context)
+}
+
+type chatRoomHandler struct {
+	chatRoomService services.ChatRoomService
+}
+
+func NewChatRoomHandler(chatRoomService services.ChatRoomService) *chatRoomHandler {
+	return &chatRoomHandler{chatRoomService: chatRoomService}
+}
+
+func (h *chatRoomHandler) FindChatRoomById(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
@@ -26,8 +45,7 @@ func FindChatRoomById(c *gin.Context) {
 		})
 		return
 	}
-	log.InfoLogger.Println("ID:", id)
-	chatRoom, err := services.FindChatRoomById(id)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(id)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusNoContent, response.ResponseData{
@@ -63,7 +81,7 @@ func FindChatRoomById(c *gin.Context) {
 	})
 }
 
-func FindChatRooms(c *gin.Context) {
+func (h *chatRoomHandler) FindChatRoomsBySaId(c *gin.Context) {
 	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -74,7 +92,7 @@ func FindChatRooms(c *gin.Context) {
 		})
 		return
 	}
-	chatRooms, err := services.FindChatRoomsByMember(saId)
+	chatRooms, err := h.chatRoomService.FindChatRoomsBySaId(saId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -91,7 +109,7 @@ func FindChatRooms(c *gin.Context) {
 	})
 }
 
-func FindDMByMembers(c *gin.Context) {
+func (h *chatRoomHandler) FindDMByMember(c *gin.Context) {
 	var member string
 	// err := json.NewDecoder(c.Request.Body).Decode(&member)
 	err := c.ShouldBindJSON(&member)
@@ -126,7 +144,7 @@ func FindDMByMembers(c *gin.Context) {
 
 	members := []string{member, saId}
 
-	chatRoom, err := services.FindDMByMembers(members)
+	chatRoom, err := h.chatRoomService.FindDMByMembers(members)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -144,7 +162,7 @@ func FindDMByMembers(c *gin.Context) {
 
 }
 
-func FindGroupsByMembers(c *gin.Context) {
+func (h *chatRoomHandler) FindGroupsByMembers(c *gin.Context) {
 	var members []string
 	err := json.NewDecoder(c.Request.Body).Decode(&members)
 	if err != nil {
@@ -162,7 +180,7 @@ func FindGroupsByMembers(c *gin.Context) {
 		return
 	}
 
-	chatRooms, err := services.FindGroupsByMembers(append(members, saId))
+	chatRooms, err := h.chatRoomService.FindGroupsChatByMembers(append(members, saId))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -179,11 +197,10 @@ func FindGroupsByMembers(c *gin.Context) {
 	})
 }
 
-func CreateNewGroupChat(c *gin.Context) {
+func (h *chatRoomHandler) CreateNewGroupChat(c *gin.Context) {
 
 	var chatRoom models.ChatRoom
-	err := json.NewDecoder(c.Request.Body).Decode(&chatRoom)
-
+	err := c.ShouldBindJSON(&chatRoom)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -214,7 +231,7 @@ func CreateNewGroupChat(c *gin.Context) {
 		return
 	}
 
-	result, err := services.InsertChatRoom(chatRoom)
+	result, err := h.chatRoomService.InsertChatRoom(chatRoom)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -231,7 +248,7 @@ func CreateNewGroupChat(c *gin.Context) {
 	})
 }
 
-func CreateDMRoom(c *gin.Context) {
+func (h *chatRoomHandler) CreateNewDMChat(c *gin.Context) {
 	var member string
 	err := json.NewDecoder(c.Request.Body).Decode(&member)
 	if err != nil {
@@ -265,7 +282,7 @@ func CreateDMRoom(c *gin.Context) {
 
 	var friendIds []string
 	for _, friend := range friends {
-		friendIds = append(friendIds, friend.(map[string]interface{})["id"].(string))
+		friendIds = append(friendIds, friend.(map[string]interface{})["saIdFriend"].(string))
 	}
 
 	if !utils.ContainsString(friendIds, member) {
@@ -294,7 +311,7 @@ func CreateDMRoom(c *gin.Context) {
 		saId,
 	}
 	sort.Strings(members)
-	result, err := services.InsertChatRoom(
+	result, err := h.chatRoomService.InsertChatRoom(
 		models.ChatRoom{
 			Name:    members[0] + "-" + members[1],
 			Type:    models.ChatRoomTypeDM,
@@ -317,9 +334,9 @@ func CreateDMRoom(c *gin.Context) {
 	})
 }
 
-func AddMemberToGroup(c *gin.Context) {
+func (h *chatRoomHandler) AddMemberToGroup(c *gin.Context) {
 	var req request.AddMemReq
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -329,7 +346,7 @@ func AddMemberToGroup(c *gin.Context) {
 		})
 		return
 	}
-	chatRoom, err := services.FindChatRoomById(req.ChatRoomId)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(req.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -358,7 +375,7 @@ func AddMemberToGroup(c *gin.Context) {
 		})
 		return
 	}
-	result, err := services.AddMemberToChatRoom(req.ChatRoomId, req.SaIds)
+	result, err := h.chatRoomService.AddMembersToChatRoom(req.ChatRoomId, req.SaIds)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -375,7 +392,7 @@ func AddMemberToGroup(c *gin.Context) {
 	})
 }
 
-func RemoveMemberFromGroup(c *gin.Context) {
+func (h *chatRoomHandler) RemoveMemberFromGroup(c *gin.Context) {
 	var req request.RemoveMemReq
 	err := c.BindJSON(&req)
 	if err != nil {
@@ -387,7 +404,7 @@ func RemoveMemberFromGroup(c *gin.Context) {
 		})
 		return
 	}
-	chatRoom, err := services.FindChatRoomById(req.ChatRoomId)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(req.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -416,7 +433,7 @@ func RemoveMemberFromGroup(c *gin.Context) {
 		})
 		return
 	}
-	result, err := services.RemoveMemberFromChatRoom(req.ChatRoomId, req.SaIds)
+	result, err := h.chatRoomService.RemoveMembersFromChatRoom(req.ChatRoomId, req.SaIds)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -433,7 +450,7 @@ func RemoveMemberFromGroup(c *gin.Context) {
 	})
 }
 
-func LeaveGroup(c *gin.Context) {
+func (h *chatRoomHandler) LeaveGroup(c *gin.Context) {
 	chatRoomId := c.Param("chatRoomId")
 	if chatRoomId == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
@@ -444,7 +461,7 @@ func LeaveGroup(c *gin.Context) {
 		})
 		return
 	}
-	chatRoom, err := services.FindChatRoomById(chatRoomId)
+	chatRoom, err := h.chatRoomService.FindChatRoomById(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -473,7 +490,7 @@ func LeaveGroup(c *gin.Context) {
 		})
 		return
 	}
-	result, err := services.RemoveMemberFromChatRoom(chatRoomId, []string{saId})
+	result, err := h.chatRoomService.RemoveMembersFromChatRoom(chatRoomId, []string{saId})
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{

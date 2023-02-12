@@ -11,7 +11,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/go-chat-server/app"
-	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 )
 
@@ -35,10 +34,6 @@ to quickly create a Cobra application.`,
 		if godotenv.Load() != nil {
 			log.FatalLogger.Fatal("Error loading .env file")
 		}
-		services.InitDbClient(
-			os.Getenv("MONGO_CONNECTION_STRING"),
-			os.Getenv("MONGO_DB"))
-		services.InitWebSocket()
 		app.Start()
 
 	},

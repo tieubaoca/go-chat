@@ -13,9 +13,10 @@ var (
 )
 
 type ChatRoom struct {
-	Id      primitive.ObjectID `bson:"_id" json:"id,omitempty"`
-	Owner   string             `json:"owner" bson:"owner"`
-	Type    ChatRoomType       `json:"type" bson:"type"`
-	Name    string             `json:"name" bson:"name"`
-	Members []string           `json:"members" bson:"members"`
+	Id        primitive.ObjectID `bson:"_id" json:"id,omitempty"`
+	Owner     string             `json:"owner" bson:"owner"`
+	Type      ChatRoomType       `json:"type" bson:"type"`
+	Name      string             `json:"name" bson:"name"`
+	Members   []string           `json:"members" bson:"members"`
+	IsBlocked bool               `json:"isBlocked" bson:"isBlocked"`
 }
