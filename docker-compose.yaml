@@ -1,0 +1,15 @@
+---
+version: '3.9'
+services:
+  app:
+    build: ./
+    ports:
+      - 8800:8800
+
+  db: 
+    image: mongo:6.0.0
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
