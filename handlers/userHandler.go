@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +30,7 @@ func NewUserHandler(userService services.UserService) *userHandler {
 func (h *userHandler) PaginationOnlineFriend(c *gin.Context) {
 	tokenString := utils.GetAccessTokenByReq(c.Request)
 	var paginationReq request.PaginationOnlineFriendReq
-	err := json.NewDecoder(c.Request.Body).Decode(&paginationReq)
+	err := c.ShouldBindJSON(&paginationReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(
@@ -49,7 +48,7 @@ func (h *userHandler) PaginationOnlineFriend(c *gin.Context) {
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(
-			http.StatusNoContent,
+			http.StatusInternalServerError,
 			response.ResponseData{
 				Status:  types.StatusError,
 				Message: err.Error(),
@@ -61,6 +60,18 @@ func (h *userHandler) PaginationOnlineFriend(c *gin.Context) {
 	friendStatus, err := h.userService.FindUserStatusInUserList(
 		users,
 	)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(
+			http.StatusInternalServerError,
+			response.ResponseData{
+				Status:  types.StatusError,
+				Message: err.Error(),
+				Data:    "",
+			},
+		)
+		return
+	}
 	c.JSON(
 		http.StatusOK,
 		response.ResponseData{

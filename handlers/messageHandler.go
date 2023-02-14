@@ -38,25 +38,6 @@ func NewMessageHandler(
 
 func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 	chatRoomId := c.Param("chatRoomId")
-	if chatRoomId == "" {
-		log.ErrorLogger.Println(types.ErrorInvalidInput)
-		c.JSON(http.StatusBadRequest, response.ResponseData{
-			Status:  types.StatusError,
-			Message: types.ErrorInvalidInput,
-			Data:    "",
-		})
-	}
-	chatRoom, err := h.chatRoomService.FindChatRoomById(chatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusNoContent, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-
 	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -67,12 +48,12 @@ func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 		})
 		return
 	}
-
-	if !utils.ContainsString(chatRoom.Members, saId) {
-		log.ErrorLogger.Println(types.ErrorNotRoomMember)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+	_, err = h.chatRoomService.FindChatRoomById(saId, chatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
-			Message: types.ErrorNotRoomMember,
+			Message: err.Error(),
 			Data:    "",
 		})
 		return
@@ -81,7 +62,7 @@ func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 	messages, err := h.messageService.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusNoContent, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -106,17 +87,6 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 			Data:    "",
 		})
 	}
-
-	chatRoom, err := h.chatRoomService.FindChatRoomById(pagination.ChatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusNoContent, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
 	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -127,11 +97,12 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 		})
 		return
 	}
-	if !utils.ContainsString(chatRoom.Members, saId) {
-		log.ErrorLogger.Println(types.ErrorNotRoomMember)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+	_, err = h.chatRoomService.FindChatRoomById(saId, pagination.ChatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
-			Message: types.ErrorNotRoomMember,
+			Message: err.Error(),
 			Data:    "",
 		})
 		return
@@ -144,7 +115,7 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 	)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusNoContent, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -174,7 +145,7 @@ func (h *messageHandler) InsertMessage(c *gin.Context) {
 	result, err := h.messageService.InsertMessage(message)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusNoContent, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",

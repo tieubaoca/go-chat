@@ -12,12 +12,12 @@ import (
 )
 
 type ChatRoomRepository interface {
-	FindChatRoomById(chatRoomId string) (models.ChatRoom, error)
+	FindChatRoomById(chatRoomId string) (*models.ChatRoom, error)
 	FindChatRoomBySaId(saId string) ([]models.ChatRoom, error)
 	InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error)
 	AddMembersToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
 	RemoveMembersFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
-	FindDMByMembers(members []string) (models.ChatRoom, error)
+	FindDMByMembers(members []string) (*models.ChatRoom, error)
 	FindGroupChatByMembers(members []string) ([]models.ChatRoom, error)
 }
 
@@ -29,7 +29,7 @@ func NewChatRoomRepository(db *mongo.Database) *chatRoomRepository {
 	return &chatRoomRepository{db}
 }
 
-func (r *chatRoomRepository) FindChatRoomById(chatRoomId string) (models.ChatRoom, error) {
+func (r *chatRoomRepository) FindChatRoomById(chatRoomId string) (*models.ChatRoom, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -40,10 +40,10 @@ func (r *chatRoomRepository) FindChatRoomById(chatRoomId string) (models.ChatRoo
 	var result models.ChatRoom
 	obId, err := primitive.ObjectIDFromHex(chatRoomId)
 	if err != nil {
-		return result, err
+		return &result, err
 	}
 	err = coll.FindOne(context.TODO(), bson.D{{"_id", obId}}).Decode(&result)
-	return result, err
+	return &result, err
 }
 func (r *chatRoomRepository) FindChatRoomBySaId(saId string) ([]models.ChatRoom, error) {
 	defer func() {
@@ -131,7 +131,7 @@ func (r *chatRoomRepository) RemoveMembersFromChatRoom(chatRoomId string, member
 	)
 }
 
-func (r *chatRoomRepository) FindDMByMembers(saIds []string) (models.ChatRoom, error) {
+func (r *chatRoomRepository) FindDMByMembers(saIds []string) (*models.ChatRoom, error) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -152,7 +152,7 @@ func (r *chatRoomRepository) FindDMByMembers(saIds []string) (models.ChatRoom, e
 			{"type", models.ChatRoomTypeDM},
 		},
 	).Decode(&result)
-	return result, err
+	return &result, err
 }
 
 func (r *chatRoomRepository) FindGroupChatByMembers(members []string) ([]models.ChatRoom, error) {

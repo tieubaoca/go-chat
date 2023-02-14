@@ -5,8 +5,10 @@ const (
 	StatusSuccess = "success"
 	StatusError   = "error"
 	// Error
-	ErrorTokenEmpty    = "Token is empty"
-	ErrorInvalidInput  = "Invalid input"
-	ErrorNotRoomMember = "Not room member"
-	ErrorUnauthorized  = "Unauthorized"
+	ErrorTokenEmpty          = "token is empty"
+	ErrorInvalidInput        = "invalid input"
+	ErrorNotRoomMember       = "not room member"
+	ErrorUnauthorized        = "unauthorized"
+	ErrorOnlyOwner           = "only owner"
+	ErrorInvalidChatRoomType = "invalid chat room type"
 )

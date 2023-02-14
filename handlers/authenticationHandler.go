@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 
@@ -32,7 +31,7 @@ func NewAuthenticationHandler(websocketService services.WebSocketService) *authe
 
 func (h *authenticationHandler) Login(c *gin.Context) {
 	var getAccTokenReq request.GetAccessTokenReq
-	err := json.NewDecoder(c.Request.Body).Decode(&getAccTokenReq)
+	err := c.ShouldBindJSON(&getAccTokenReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -53,7 +52,7 @@ func (h *authenticationHandler) Login(c *gin.Context) {
 	accessToken, refreshToken, err := utils.GetSaasAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
 		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusBadRequest, response.ResponseData{
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
@@ -81,8 +80,7 @@ func (h *authenticationHandler) Login(c *gin.Context) {
 	)
 	_, err = utils.JWTSaasParse(accessToken)
 	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusBadRequest, response.ResponseData{
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
 			Status:  types.StatusError,
 			Message: err.Error(),
 			Data:    "",
