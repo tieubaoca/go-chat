@@ -72,7 +72,7 @@ func (r *messageRepository) PaginationMessagesByChatRoomId(chatRoomId string, li
 	}()
 	coll := r.db.Collection(models.MessageCollection)
 
-	opts := options.Find().SetSkip(0).SetLimit(10)
+	opts := options.Find().SetSkip(skip).SetLimit(limit)
 	result, err := coll.Find(context.TODO(), bson.M{
 		"chatRoom": chatRoomId,
 	}, opts)
