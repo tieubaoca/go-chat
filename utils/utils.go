@@ -115,7 +115,6 @@ func GetCitizen(token string) (map[string]interface{}, error) {
 		return nil, errors.New("get citizen error, status: " + res.Status)
 	}
 	data := result["data"].(map[string]interface{})
-	log.InfoLogger.Println(data)
 	return data, nil
 }
 

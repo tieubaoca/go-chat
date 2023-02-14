@@ -110,18 +110,7 @@ func (h *chatRoomHandler) FindChatRoomsBySaId(c *gin.Context) {
 }
 
 func (h *chatRoomHandler) FindDMByMember(c *gin.Context) {
-	var member string
-	// err := json.NewDecoder(c.Request.Body).Decode(&member)
-	err := c.ShouldBindJSON(&member)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusBadRequest, response.ResponseData{
-			Status:  types.StatusError,
-			Message: types.ErrorInvalidInput,
-			Data:    "",
-		})
-		return
-	}
+	member := c.Param("member")
 	if member == "" {
 		log.ErrorLogger.Println(types.ErrorInvalidInput)
 		c.JSON(http.StatusBadRequest, response.ResponseData{
@@ -220,7 +209,7 @@ func (h *chatRoomHandler) CreateNewGroupChat(c *gin.Context) {
 			Data:    "",
 		})
 	}
-	chatRoom.Owner, err = utils.GetSaIdFromToken(saId)
+	chatRoom.Owner = saId
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -229,6 +218,10 @@ func (h *chatRoomHandler) CreateNewGroupChat(c *gin.Context) {
 			Data:    "",
 		})
 		return
+	}
+
+	if !utils.ContainsString(chatRoom.Members, saId) {
+		chatRoom.Members = append(chatRoom.Members, saId)
 	}
 
 	result, err := h.chatRoomService.InsertChatRoom(chatRoom)
@@ -433,6 +426,23 @@ func (h *chatRoomHandler) RemoveMemberFromGroup(c *gin.Context) {
 		})
 		return
 	}
+	if len(req.SaIds) == 0 {
+		log.ErrorLogger.Println(types.ErrorInvalidInput)
+		c.JSON(http.StatusBadRequest, response.ResponseData{
+			Status:  types.StatusError,
+			Message: types.ErrorInvalidInput,
+			Data:    "",
+		})
+		return
+	}
+	if utils.ContainsString(req.SaIds, saId) {
+		c.JSON(http.StatusUnauthorized, response.ResponseData{
+			Status:  types.StatusError,
+			Message: "You can't remove yourself from the group",
+			Data:    "",
+		})
+		return
+	}
 	result, err := h.chatRoomService.RemoveMembersFromChatRoom(req.ChatRoomId, req.SaIds)
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -481,11 +491,28 @@ func (h *chatRoomHandler) LeaveGroup(c *gin.Context) {
 		})
 		return
 	}
-	if utils.ContainsString(chatRoom.Members, saId) {
-		log.ErrorLogger.Println(types.ErrorUnauthorized)
-		c.JSON(http.StatusUnauthorized, response.ResponseData{
+	if chatRoom.Type == models.ChatRoomTypeDM {
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
 			Status:  types.StatusError,
-			Message: types.ErrorUnauthorized,
+			Message: "You can't leave DM",
+			Data:    "",
+		},
+		)
+		return
+	}
+	if !utils.ContainsString(chatRoom.Members, saId) {
+		log.ErrorLogger.Println(types.ErrorUnauthorized)
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: "You are not member of this group",
+			Data:    "",
+		})
+		return
+	}
+	if chatRoom.Owner == saId {
+		c.JSON(http.StatusInternalServerError, response.ResponseData{
+			Status:  types.StatusError,
+			Message: "You are owner of this group",
 			Data:    "",
 		})
 		return

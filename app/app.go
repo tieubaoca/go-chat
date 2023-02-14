@@ -71,7 +71,7 @@ func Start() {
 	{
 		chatRoom.GET("/id/:id", chatRoomHandler.FindChatRoomById)
 		chatRoom.GET("/all", chatRoomHandler.FindChatRoomsBySaId)
-		chatRoom.POST("/dm/members", chatRoomHandler.FindDMByMember)
+		chatRoom.POST("/dm/:member", chatRoomHandler.FindDMByMember)
 		chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
 		chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
 		chatRoom.POST("/group/members", chatRoomHandler.FindGroupsByMembers)

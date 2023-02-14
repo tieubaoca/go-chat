@@ -6,7 +6,6 @@ import (
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -72,15 +71,11 @@ func (r *messageRepository) PaginationMessagesByChatRoomId(chatRoomId string, li
 		}
 	}()
 	coll := r.db.Collection(models.MessageCollection)
-	ojId, err := primitive.ObjectIDFromHex(chatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-	result, err := coll.Find(context.TODO(), bson.D{{"chatRoom", ojId}}, &options.FindOptions{
-		Limit: &limit,
-		Skip:  &skip,
-	})
+
+	opts := options.Find().SetSkip(0).SetLimit(10)
+	result, err := coll.Find(context.TODO(), bson.M{
+		"chatRoom": chatRoomId,
+	}, opts)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return nil, err
