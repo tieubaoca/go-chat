@@ -27,6 +27,7 @@ type webSocketService struct {
 	chatRoomRepository repositories.ChatRoomRepository
 	messageRepository  repositories.MessageRepository
 	userRepository     repositories.UserRepository
+	messageStatus      repositories.MessageStatusRepository
 	epoll              *types.Epoll
 	wsFd               map[string][]int
 	wsClients          map[int]*types.WebSocketClient
@@ -38,6 +39,7 @@ func NewWebSocketService(
 	chatRoomRepository repositories.ChatRoomRepository,
 	messageRepository repositories.MessageRepository,
 	userRepository repositories.UserRepository,
+	messageStatusRepository repositories.MessageStatusRepository,
 ) *webSocketService {
 	// Increase the maximum number of open files
 	var rLimit syscall.Rlimit
@@ -56,6 +58,7 @@ func NewWebSocketService(
 		chatRoomRepository: chatRoomRepository,
 		messageRepository:  messageRepository,
 		userRepository:     userRepository,
+		messageStatus:      messageStatusRepository,
 		epoll:              epoll,
 		wsFd:               make(map[string][]int),
 		wsClients:          make(map[int]*types.WebSocketClient),
@@ -83,9 +86,6 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// if _, ok := wsClients[saId]; !ok {
-	// 	wsClients[saId] = make(map[string]*types.WebSocketClient)
-	// }
 	log.InfoLogger.Println("Add new client: ", saId)
 	client := &types.WebSocketClient{
 		SaId: saId,
@@ -103,7 +103,7 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		s.wsFd[saId] = make([]int, 0)
 	}
 	s.wsFd[saId] = append(s.wsFd[saId], fd)
-	ws.WriteJSON(response.WebSocketResponse{
+	ws.WriteJSON(response.WebSocketEvent{
 		EventType:    "Connected",
 		EventPayload: saId,
 	})
@@ -119,7 +119,6 @@ func (s *webSocketService) HandleEpoll() {
 	for {
 		fds, err := s.epoll.Wait()
 		if err != nil {
-			log.ErrorLogger.Println(err)
 			continue
 		}
 		for _, fd := range fds {
@@ -141,13 +140,13 @@ func (s *webSocketService) HandleEpoll() {
 			}
 			switch msg.EventType {
 			case types.WebsocketEventTypeMessage:
-				s.handleMessage(msg)
+				go s.handleMessage(msg)
 			}
 		}
 	}
 }
 
-func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
+func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -159,16 +158,20 @@ func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
 	chatRoom, err := s.chatRoomRepository.FindChatRoomById(msg["chatRoom"].(string))
 	if err != nil {
 		log.ErrorLogger.Println(err)
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: err.Error(),
+		})
+		return
 	}
 	if !utils.ContainsString(chatRoom.Members, event.Sender) {
-		for _, fd := range s.wsFd[event.Sender] {
-			ws := s.wsClients[fd]
-			ws.Conn.WriteJSON(response.WebSocketResponse{
-				EventType:    types.WebsocketEventTypeError,
-				Sender:       "server",
-				EventPayload: "You are not a member of this chat room",
-			})
-		}
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: "You are not a member of this chat room",
+		})
+
 		return
 	}
 	message := models.Message{
@@ -183,18 +186,25 @@ func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
 		log.ErrorLogger.Println(err)
 		return
 	}
+	userEmitted := make([]string, 0)
 	for _, member := range chatRoom.Members {
 		fds := s.wsFd[member]
 		for _, fd := range fds {
 			ws := s.wsClients[fd]
-			ws.Conn.WriteJSON(response.WebSocketResponse{
+			err := ws.Conn.WriteJSON(response.WebSocketEvent{
 				EventType:    types.WebsocketEventTypeMessage,
 				Sender:       event.Sender,
 				EventPayload: message,
 			})
-
+			if err != nil {
+				log.ErrorLogger.Println(err)
+				s.epoll.Remove(s.wsClients[fd].Conn)
+				continue
+			}
+			userEmitted = append(userEmitted, member)
 		}
 	}
+	s.messageStatus.UpdateReceivedBatchSaIds(userEmitted, message.Id.Hex())
 
 }
 

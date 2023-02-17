@@ -19,6 +19,7 @@ type ChatRoomRepository interface {
 	RemoveMembersFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
 	FindDMByMembers(members []string) (*models.ChatRoom, error)
 	FindGroupChatByMembers(members []string) ([]models.ChatRoom, error)
+	TransferOwner(chatRoomId, newOwner string) error
 }
 
 type chatRoomRepository struct {
@@ -93,6 +94,7 @@ func (r *chatRoomRepository) AddMembersToChatRoom(chatRoomId string, members []s
 	}()
 	coll := r.db.Collection(models.ChatRoomCollection)
 	chatRoom, err := r.FindChatRoomById(chatRoomId)
+
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return nil, err
@@ -182,4 +184,26 @@ func (r *chatRoomRepository) FindGroupChatByMembers(members []string) ([]models.
 	}
 	err = cursor.All(context.TODO(), &result)
 	return result, err
+}
+
+func (r *chatRoomRepository) TransferOwner(chatRoomId, newOwner string) error {
+
+	coll := r.db.Collection(models.ChatRoomCollection)
+	objId, err := primitive.ObjectIDFromHex(chatRoomId)
+	if err != nil {
+		return err
+	}
+	result := coll.FindOneAndUpdate(
+		context.TODO(),
+		bson.M{
+			"_id": objId,
+		},
+		bson.M{
+			"$set": bson.M{
+				"owner": newOwner,
+			},
+		},
+	)
+
+	return result.Err()
 }

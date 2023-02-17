@@ -14,6 +14,7 @@ type UserRepository interface {
 	FindUserStatusInSaIdList(saIds []string) (map[string]models.UserOnlineStatus, error)
 	FindUserStatusBySaId(saId string) (models.UserOnlineStatus, error)
 	UpdateUserStatus(saId string, isActive bool, lastSeen primitive.DateTime) error
+	IsUserExist(saId string) bool
 }
 
 type userRepository struct {
@@ -97,4 +98,18 @@ func (r *userRepository) UpdateUserStatus(saId string, isActive bool, lastSeen p
 		return err
 	}
 	return nil
+}
+
+func (r *userRepository) IsUserExist(saId string) bool {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	coll := r.db.Collection(models.UserOnlineStatusCollection)
+	_, err := coll.Find(context.TODO(), bson.M{
+		"saId": saId,
+	})
+	return err == nil
 }

@@ -1,10 +1,10 @@
 package types
 
 const (
-	RoleViewProfile       = "view-profile"
-	RoleManageAccountLink = "manage-account-link"
-	RoleManagerAccount    = "manage-account"
-
+	// Status
+	StatusSuccess = "success"
+	StatusError   = "error"
+	// Websocket
 	WebsocketEventTypeMessage = "Message"
 	WebsocketEventTypePing    = "Ping"
 	WebsocketEventTypePong    = "Pong"

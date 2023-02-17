@@ -34,20 +34,30 @@ func Start() {
 		database,
 	)
 
+	messageStatusRepository := repositories.NewMessageStatusRepository(
+		database,
+	)
+
 	userService := services.NewUserService(
 		userRepository,
 	)
 	chatRoomService := services.NewChatRoomService(
 		chatRoomRepository,
+		userRepository,
 	)
 	messageService := services.NewMessageService(
 		messageRepository,
+		messageStatusRepository,
 	)
 
 	websocketService := services.NewWebSocketService(
 		chatRoomRepository,
 		messageRepository,
 		userRepository,
+		messageStatusRepository,
+	)
+	messageStatusService := services.NewMessageStatusService(
+		messageStatusRepository,
 	)
 
 	authenticationHandler := handlers.NewAuthenticationHandler(websocketService)
@@ -55,6 +65,7 @@ func Start() {
 	messageHandler := handlers.NewMessageHandler(messageService, chatRoomService)
 	userHandler := handlers.NewUserHandler(userService)
 	websocketHandler := handlers.NewWebSocketHandler(websocketService)
+	messageStatusHandler := handlers.NewMessageStatusHandler(messageStatusService)
 
 	r := gin.Default()
 	r.POST("/saas/api/login", authenticationHandler.Login)
@@ -91,6 +102,13 @@ func Start() {
 	{
 		message.GET("/chat-room/:chatRoomId", messageHandler.FindMessagesByChatRoomId)
 		message.POST("/pagination", messageHandler.PaginationMessagesByChatRoomId)
+	}
+
+	messageStatus := r.Group("/saas/api/message-status")
+	messageStatus.Use(middleware.JwtMiddleware)
+	{
+		messageStatus.POST("/:messageId", messageStatusHandler.FindMessageStatusByMessageId)
+		messageStatus.POST("/", messageStatusHandler.FindMessageStatusByMessageIds)
 	}
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))

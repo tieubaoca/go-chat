@@ -20,8 +20,8 @@ func (wsc *WebSocketClient) Close() {
 	wsc.Conn.Close()
 }
 
-func (wsc *WebSocketClient) Read() (response.WebSocketResponse, error) {
-	var msg response.WebSocketResponse
+func (wsc *WebSocketClient) Read() (response.WebSocketEvent, error) {
+	var msg response.WebSocketEvent
 	err := wsc.Conn.ReadJSON(&msg)
 
 	if err != nil {
@@ -30,5 +30,6 @@ func (wsc *WebSocketClient) Read() (response.WebSocketResponse, error) {
 		return msg, err
 	}
 	msg.Sender = wsc.SaId
+	msg.Client = wsc.Conn
 	return msg, err
 }

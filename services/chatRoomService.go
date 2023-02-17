@@ -23,14 +23,22 @@ type ChatRoomService interface {
 	FindGroupsChatByMembers(members []string) ([]models.ChatRoom, error)
 	CreateNewDMChat(saasToken, member string) (*mongo.InsertOneResult, error)
 	LeaveGroup(requester string, chatRoomId string) (*mongo.UpdateResult, error)
+	TransferOwner(requester, chatRoomId, newOwner string) error
 }
 
 type chatRoomService struct {
 	chatRoomRepository repositories.ChatRoomRepository
+	userRepository     repositories.UserRepository
 }
 
-func NewChatRoomService(chatRoomRepository repositories.ChatRoomRepository) *chatRoomService {
-	return &chatRoomService{chatRoomRepository}
+func NewChatRoomService(
+	chatRoomRepository repositories.ChatRoomRepository,
+	userRepository repositories.UserRepository,
+) *chatRoomService {
+	return &chatRoomService{
+		chatRoomRepository,
+		userRepository,
+	}
 }
 
 func (s *chatRoomService) FindChatRoomById(requester, chatRoomId string) (*models.ChatRoom, error) {
@@ -59,6 +67,11 @@ func (s *chatRoomService) FindDMByMembers(saIds []string) (*models.ChatRoom, err
 func (s *chatRoomService) CreateNewGroup(requester string, req request.CreateNewGroupReq) (*mongo.InsertOneResult, error) {
 	if !utils.ContainsString(req.Members, requester) {
 		req.Members = append(req.Members, requester)
+	}
+	for _, member := range req.Members {
+		if !s.userRepository.IsUserExist(member) {
+			return nil, errors.New(types.ErrorUserNotExist)
+		}
 	}
 	chatRoom := models.ChatRoom{
 		Owner:     requester,
@@ -149,4 +162,18 @@ func (s *chatRoomService) LeaveGroup(requester string, chatRoomId string) (*mong
 	}
 
 	return s.chatRoomRepository.RemoveMembersFromChatRoom(chatRoomId, []string{requester})
+}
+
+func (s *chatRoomService) TransferOwner(requester, chatRoomId, newOwner string) error {
+	chatRoom, err := s.FindChatRoomById(requester, chatRoomId)
+	if err != nil {
+		return err
+	}
+	if chatRoom.Owner != requester {
+		return errors.New(types.ErrorOnlyOwner)
+	}
+	if !s.userRepository.IsUserExist(newOwner) {
+		return errors.New(types.ErrorUserNotExist)
+	}
+	return s.chatRoomRepository.TransferOwner(chatRoomId, newOwner)
 }

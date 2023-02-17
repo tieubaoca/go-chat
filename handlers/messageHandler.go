@@ -59,7 +59,7 @@ func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 		return
 	}
 
-	messages, err := h.messageService.FindMessagesByChatRoomId(chatRoomId)
+	messages, err := h.messageService.FindMessagesByChatRoomId(saId, chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -109,9 +109,8 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 	}
 
 	messages, err := h.messageService.PaginationMessagesByChatRoomId(
-		pagination.ChatRoomId,
-		pagination.Limit,
-		pagination.Skip,
+		saId,
+		pagination,
 	)
 	if err != nil {
 		log.ErrorLogger.Println(err)
