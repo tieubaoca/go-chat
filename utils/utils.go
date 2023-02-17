@@ -21,14 +21,34 @@ import (
 )
 
 func GetAccessTokenByReq(r *http.Request) string {
-	var tokenString string
-	tokenCookie, err := r.Cookie("access-token")
-	if err != nil {
-		tokenString = r.URL.Query().Get("access-token")
-	} else {
-		tokenString = tokenCookie.Value
+	accessToken := getTokenFromHeader(r)
+	if accessToken == "" {
+		accessToken = getTokenFromQueryParams(r)
 	}
-	return tokenString
+	if accessToken == "" {
+		accessToken = getTokenFromCookie(r)
+	}
+	return accessToken
+}
+
+func getTokenFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie("access-token")
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func getTokenFromQueryParams(r *http.Request) string {
+	return r.URL.Query().Get("access-token")
+}
+
+func getTokenFromHeader(r *http.Request) string {
+	bearer := r.Header.Get("Authorization")
+	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
+		return bearer[7:]
+	}
+	return ""
 }
 
 func JWTParseUnverified(tokenString string) (*jwt.Token, error) {

@@ -119,7 +119,6 @@ func (s *webSocketService) HandleEpoll() {
 	for {
 		fds, err := s.epoll.Wait()
 		if err != nil {
-			log.ErrorLogger.Println(err)
 			continue
 		}
 		for _, fd := range fds {
