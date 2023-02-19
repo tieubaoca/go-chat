@@ -2,23 +2,19 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
-	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/services"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 	"github.com/tieubaoca/go-chat-server/utils/log"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type MessageHandler interface {
 	FindMessagesByChatRoomId(c *gin.Context)
 	PaginationMessagesByChatRoomId(c *gin.Context)
-	InsertMessage(c *gin.Context)
 }
 
 type messageHandler struct {
@@ -59,7 +55,7 @@ func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 		return
 	}
 
-	messages, err := h.messageService.FindMessagesByChatRoomId(chatRoomId)
+	messages, err := h.messageService.FindMessagesByChatRoomId(saId, chatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -109,9 +105,8 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 	}
 
 	messages, err := h.messageService.PaginationMessagesByChatRoomId(
-		pagination.ChatRoomId,
-		pagination.Limit,
-		pagination.Skip,
+		saId,
+		pagination,
 	)
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -126,35 +121,5 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 		Status:  types.StatusSuccess,
 		Message: "",
 		Data:    messages,
-	})
-}
-
-func (h *messageHandler) InsertMessage(c *gin.Context) {
-	var message models.Message
-	err := c.ShouldBindJSON(&message)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusBadRequest, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-	message.CreateAt = primitive.NewDateTimeFromTime(time.Now())
-	result, err := h.messageService.InsertMessage(message)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusInternalServerError, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-	c.JSON(http.StatusOK, response.ResponseData{
-		Status:  types.StatusSuccess,
-		Message: "",
-		Data:    result,
 	})
 }

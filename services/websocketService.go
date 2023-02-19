@@ -38,6 +38,7 @@ func NewWebSocketService(
 	chatRoomRepository repositories.ChatRoomRepository,
 	messageRepository repositories.MessageRepository,
 	userRepository repositories.UserRepository,
+
 ) *webSocketService {
 	// Increase the maximum number of open files
 	var rLimit syscall.Rlimit
@@ -82,11 +83,6 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		log.ErrorLogger.Println(err)
 		return
 	}
-
-	// if _, ok := wsClients[saId]; !ok {
-	// 	wsClients[saId] = make(map[string]*types.WebSocketClient)
-	// }
-	log.InfoLogger.Println("Add new client: ", saId)
 	client := &types.WebSocketClient{
 		SaId: saId,
 		Conn: ws,
@@ -103,7 +99,7 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		s.wsFd[saId] = make([]int, 0)
 	}
 	s.wsFd[saId] = append(s.wsFd[saId], fd)
-	ws.WriteJSON(response.WebSocketResponse{
+	ws.WriteJSON(response.WebSocketEvent{
 		EventType:    "Connected",
 		EventPayload: saId,
 	})
@@ -140,13 +136,13 @@ func (s *webSocketService) HandleEpoll() {
 			}
 			switch msg.EventType {
 			case types.WebsocketEventTypeMessage:
-				s.handleMessage(msg)
+				go s.handleMessage(msg)
 			}
 		}
 	}
 }
 
-func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
+func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -158,42 +154,60 @@ func (s *webSocketService) handleMessage(event response.WebSocketResponse) {
 	chatRoom, err := s.chatRoomRepository.FindChatRoomById(msg["chatRoom"].(string))
 	if err != nil {
 		log.ErrorLogger.Println(err)
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: err.Error(),
+		})
+		return
 	}
 	if !utils.ContainsString(chatRoom.Members, event.Sender) {
-		for _, fd := range s.wsFd[event.Sender] {
-			ws := s.wsClients[fd]
-			ws.Conn.WriteJSON(response.WebSocketResponse{
-				EventType:    types.WebsocketEventTypeError,
-				Sender:       "server",
-				EventPayload: "You are not a member of this chat room",
-			})
-		}
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: "You are not a member of this chat room",
+		})
+
 		return
 	}
 	message := models.Message{
-		ChatRoom: msg["chatRoom"].(string),
-		Sender:   event.Sender,
-		Content:  msg["content"].(string),
-		CreateAt: primitive.NewDateTimeFromTime(time.Now()),
+		ChatRoom:   msg["chatRoom"].(string),
+		Sender:     event.Sender,
+		Content:    msg["content"].(string),
+		CreateAt:   primitive.NewDateTimeFromTime(time.Now()),
+		ReceivedBy: make([]models.Received, 0),
+		SeenBy:     make([]models.Seen, 0),
 	}
-	r, err := s.messageRepository.InsertMessage(message)
-	message.Id = r.InsertedID.(primitive.ObjectID)
+
+	message.SeenBy = append(message.SeenBy, models.Seen{
+		SaId:   event.Sender,
+		SeenAt: primitive.NewDateTimeFromTime(time.Now()),
+	})
+	result, err := s.messageRepository.InsertMessage(message)
+	message.Id = result.InsertedID.(primitive.ObjectID)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
 	}
+	citizenEmitted := make([]string, 0)
 	for _, member := range chatRoom.Members {
 		fds := s.wsFd[member]
 		for _, fd := range fds {
 			ws := s.wsClients[fd]
-			ws.Conn.WriteJSON(response.WebSocketResponse{
+			err := ws.Conn.WriteJSON(response.WebSocketEvent{
 				EventType:    types.WebsocketEventTypeMessage,
 				Sender:       event.Sender,
 				EventPayload: message,
 			})
-
+			if err != nil {
+				log.ErrorLogger.Println(err)
+				s.epoll.Remove(s.wsClients[fd].Conn)
+				continue
+			}
 		}
+		citizenEmitted = append(citizenEmitted, member)
 	}
+	s.messageRepository.BatchSaIdUpdateMessageReceivedStatus(message.Id.Hex(), citizenEmitted)
 
 }
 

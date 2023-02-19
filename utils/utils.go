@@ -13,6 +13,7 @@ import (
 
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
+	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 	"github.com/tieubaoca/go-chat-server/utils/saasApi"
@@ -241,4 +242,12 @@ func GetSaasAccessToken(username string, password string) (string, string, error
 	}
 	return accessToken.(string), refreshToken.(string), nil
 
+}
+
+func GetMessageIds(messages []models.Message) []string {
+	var ids []string
+	for _, message := range messages {
+		ids = append(ids, message.Id.Hex())
+	}
+	return ids
 }

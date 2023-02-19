@@ -39,6 +39,7 @@ func Start() {
 	)
 	chatRoomService := services.NewChatRoomService(
 		chatRoomRepository,
+		userRepository,
 	)
 	messageService := services.NewMessageService(
 		messageRepository,
@@ -72,8 +73,8 @@ func Start() {
 		chatRoom.GET("/id/:id", chatRoomHandler.FindChatRoomById)
 		chatRoom.GET("/all", chatRoomHandler.FindChatRoomsBySaId)
 		chatRoom.POST("/dm/:member", chatRoomHandler.FindDMByMember)
-		chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
-		chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
+		// chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
+		// chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
 		chatRoom.POST("/group/members", chatRoomHandler.FindGroupsByMembers)
 		chatRoom.POST("/group/add-member", chatRoomHandler.AddMemberToGroup)
 		chatRoom.POST("/group/remove-member", chatRoomHandler.RemoveMemberFromGroup)
