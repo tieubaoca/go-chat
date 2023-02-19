@@ -34,10 +34,6 @@ func Start() {
 		database,
 	)
 
-	messageStatusRepository := repositories.NewMessageStatusRepository(
-		database,
-	)
-
 	userService := services.NewUserService(
 		userRepository,
 	)
@@ -47,17 +43,12 @@ func Start() {
 	)
 	messageService := services.NewMessageService(
 		messageRepository,
-		messageStatusRepository,
 	)
 
 	websocketService := services.NewWebSocketService(
 		chatRoomRepository,
 		messageRepository,
 		userRepository,
-		messageStatusRepository,
-	)
-	messageStatusService := services.NewMessageStatusService(
-		messageStatusRepository,
 	)
 
 	authenticationHandler := handlers.NewAuthenticationHandler(websocketService)
@@ -65,7 +56,6 @@ func Start() {
 	messageHandler := handlers.NewMessageHandler(messageService, chatRoomService)
 	userHandler := handlers.NewUserHandler(userService)
 	websocketHandler := handlers.NewWebSocketHandler(websocketService)
-	messageStatusHandler := handlers.NewMessageStatusHandler(messageStatusService)
 
 	r := gin.Default()
 	r.POST("/saas/api/login", authenticationHandler.Login)
@@ -83,8 +73,8 @@ func Start() {
 		chatRoom.GET("/id/:id", chatRoomHandler.FindChatRoomById)
 		chatRoom.GET("/all", chatRoomHandler.FindChatRoomsBySaId)
 		chatRoom.POST("/dm/:member", chatRoomHandler.FindDMByMember)
-		chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
-		chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
+		// chatRoom.POST("/dm", chatRoomHandler.CreateNewDMChat)
+		// chatRoom.POST("/group", chatRoomHandler.CreateNewGroupChat)
 		chatRoom.POST("/group/members", chatRoomHandler.FindGroupsByMembers)
 		chatRoom.POST("/group/add-member", chatRoomHandler.AddMemberToGroup)
 		chatRoom.POST("/group/remove-member", chatRoomHandler.RemoveMemberFromGroup)
@@ -102,13 +92,6 @@ func Start() {
 	{
 		message.GET("/chat-room/:chatRoomId", messageHandler.FindMessagesByChatRoomId)
 		message.POST("/pagination", messageHandler.PaginationMessagesByChatRoomId)
-	}
-
-	messageStatus := r.Group("/saas/api/message-status")
-	messageStatus.Use(middleware.JwtMiddleware)
-	{
-		messageStatus.POST("/:messageId", messageStatusHandler.FindMessageStatusByMessageId)
-		messageStatus.POST("/", messageStatusHandler.FindMessageStatusByMessageIds)
 	}
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))

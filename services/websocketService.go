@@ -27,7 +27,6 @@ type webSocketService struct {
 	chatRoomRepository repositories.ChatRoomRepository
 	messageRepository  repositories.MessageRepository
 	userRepository     repositories.UserRepository
-	messageStatus      repositories.MessageStatusRepository
 	epoll              *types.Epoll
 	wsFd               map[string][]int
 	wsClients          map[int]*types.WebSocketClient
@@ -39,7 +38,7 @@ func NewWebSocketService(
 	chatRoomRepository repositories.ChatRoomRepository,
 	messageRepository repositories.MessageRepository,
 	userRepository repositories.UserRepository,
-	messageStatusRepository repositories.MessageStatusRepository,
+
 ) *webSocketService {
 	// Increase the maximum number of open files
 	var rLimit syscall.Rlimit
@@ -58,7 +57,6 @@ func NewWebSocketService(
 		chatRoomRepository: chatRoomRepository,
 		messageRepository:  messageRepository,
 		userRepository:     userRepository,
-		messageStatus:      messageStatusRepository,
 		epoll:              epoll,
 		wsFd:               make(map[string][]int),
 		wsClients:          make(map[int]*types.WebSocketClient),
@@ -85,8 +83,6 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		log.ErrorLogger.Println(err)
 		return
 	}
-
-	log.InfoLogger.Println("Add new client: ", saId)
 	client := &types.WebSocketClient{
 		SaId: saId,
 		Conn: ws,
@@ -175,18 +171,25 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 		return
 	}
 	message := models.Message{
-		ChatRoom: msg["chatRoom"].(string),
-		Sender:   event.Sender,
-		Content:  msg["content"].(string),
-		CreateAt: primitive.NewDateTimeFromTime(time.Now()),
+		ChatRoom:   msg["chatRoom"].(string),
+		Sender:     event.Sender,
+		Content:    msg["content"].(string),
+		CreateAt:   primitive.NewDateTimeFromTime(time.Now()),
+		ReceivedBy: make([]models.Received, 0),
+		SeenBy:     make([]models.Seen, 0),
 	}
-	r, err := s.messageRepository.InsertMessage(message)
-	message.Id = r.InsertedID.(primitive.ObjectID)
+
+	message.SeenBy = append(message.SeenBy, models.Seen{
+		SaId:   event.Sender,
+		SeenAt: primitive.NewDateTimeFromTime(time.Now()),
+	})
+	result, err := s.messageRepository.InsertMessage(message)
+	message.Id = result.InsertedID.(primitive.ObjectID)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
 	}
-	userEmitted := make([]string, 0)
+	citizenEmitted := make([]string, 0)
 	for _, member := range chatRoom.Members {
 		fds := s.wsFd[member]
 		for _, fd := range fds {
@@ -201,10 +204,10 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 				s.epoll.Remove(s.wsClients[fd].Conn)
 				continue
 			}
-			userEmitted = append(userEmitted, member)
 		}
+		citizenEmitted = append(citizenEmitted, member)
 	}
-	s.messageStatus.UpdateReceivedBatchSaIds(userEmitted, message.Id.Hex())
+	s.messageRepository.BatchSaIdUpdateMessageReceivedStatus(message.Id.Hex(), citizenEmitted)
 
 }
 
