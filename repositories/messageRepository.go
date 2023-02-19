@@ -133,6 +133,10 @@ func (r *messageRepository) UpdateMessageSeenStatus(messageIds []string, saId st
 			log.ErrorLogger.Println(err)
 		}
 	}()
+	if err := r.UpdateMessageReceivedStatus(messageIds, saId); err != nil {
+		return err
+	}
+
 	objIds := make([]primitive.ObjectID, len(messageIds))
 	for i, v := range messageIds {
 		objIds[i], _ = primitive.ObjectIDFromHex(v)
