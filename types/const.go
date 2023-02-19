@@ -6,7 +6,7 @@ const (
 	StatusError   = "error"
 	// Websocket
 	WebsocketEventTypeMessage = "Message"
-	WebsocketEventTypePing    = "Ping"
-	WebsocketEventTypePong    = "Pong"
+	WebSocketEventTypeTyping  = "Typing"
 	WebsocketEventTypeError   = "Error"
+	WebSocketEventTypeSuccess = "Success"
 )

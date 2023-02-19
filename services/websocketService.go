@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"net/http"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/tieubaoca/go-chat-server/utils"
 
 	"github.com/gorilla/websocket"
+	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -137,6 +139,10 @@ func (s *webSocketService) HandleEpoll() {
 			switch msg.EventType {
 			case types.WebsocketEventTypeMessage:
 				go s.handleMessage(msg)
+			case types.WebSocketEventTypeTyping:
+				go s.handleTypingEvent(msg)
+			default:
+				go s.handleError(msg)
 			}
 		}
 	}
@@ -178,11 +184,6 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 		ReceivedBy: make([]models.Received, 0),
 		SeenBy:     make([]models.Seen, 0),
 	}
-
-	message.SeenBy = append(message.SeenBy, models.Seen{
-		SaId:   event.Sender,
-		SeenAt: primitive.NewDateTimeFromTime(time.Now()),
-	})
 	result, err := s.messageRepository.InsertMessage(message)
 	message.Id = result.InsertedID.(primitive.ObjectID)
 	if err != nil {
@@ -208,7 +209,77 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 		citizenEmitted = append(citizenEmitted, member)
 	}
 	s.messageRepository.BatchSaIdUpdateMessageReceivedStatus(message.Id.Hex(), citizenEmitted)
+}
 
+func (s *webSocketService) handleTypingEvent(event response.WebSocketEvent) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	var typingEvent request.WebsocketTypingEvent
+	jsonString, err := json.Marshal(event.EventPayload)
+	if err != nil {
+		event.Client.WriteJSON(
+			response.WebSocketEvent{
+				Sender:       "server",
+				EventType:    types.WebsocketEventTypeError,
+				EventPayload: err,
+			},
+		)
+		return
+	}
+	json.Unmarshal(jsonString, &typingEvent)
+	chatRoom, err := s.chatRoomRepository.FindChatRoomById(typingEvent.ChatRoomId)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: err.Error(),
+		})
+		return
+	}
+	if !utils.ContainsString(chatRoom.Members, event.Sender) {
+		event.Client.WriteJSON(response.WebSocketEvent{
+			EventType:    types.WebsocketEventTypeError,
+			Sender:       "server",
+			EventPayload: types.ErrorNotRoomMember,
+		})
+		return
+	}
+	for _, member := range chatRoom.Members {
+		fds := s.wsFd[member]
+		for _, fd := range fds {
+			ws := s.wsClients[fd]
+			err := ws.Conn.WriteJSON(response.WebSocketEvent{
+				EventType:    types.WebSocketEventTypeTyping,
+				Sender:       event.Sender,
+				EventPayload: typingEvent,
+			})
+			if err != nil {
+				log.ErrorLogger.Println(err)
+				s.epoll.Remove(s.wsClients[fd].Conn)
+				continue
+			}
+		}
+	}
+}
+
+func (s *webSocketService) handleError(event response.WebSocketEvent) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	log.ErrorLogger.Println(event.EventPayload)
+	event.Client.WriteJSON(response.WebSocketEvent{
+		EventType:    types.WebsocketEventTypeError,
+		Sender:       "server",
+		EventPayload: "invalid event type",
+	})
 }
 
 func (s *webSocketService) Logout(saId string) {

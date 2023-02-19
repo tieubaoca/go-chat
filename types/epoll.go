@@ -6,7 +6,6 @@ import (
 	"syscall"
 
 	"github.com/gorilla/websocket"
-	"github.com/tieubaoca/go-chat-server/utils/log"
 	"golang.org/x/sys/unix"
 )
 
@@ -30,7 +29,6 @@ func MkEpoll() (*Epoll, error) {
 
 func (e *Epoll) Add(conn *websocket.Conn) (int, error) {
 	fd := websocketFD(conn)
-	log.InfoLogger.Println("Adding websocket fd:", fd)
 	err := unix.EpollCtl(e.fd, syscall.EPOLL_CTL_ADD, fd, &unix.EpollEvent{Events: unix.POLLIN | unix.POLLHUP, Fd: int32(fd)})
 	if err != nil {
 		return 0, err
