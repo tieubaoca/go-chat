@@ -1,22 +1,13 @@
 package utils
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/tieubaoca/go-chat-server/dto/request"
-	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/models"
-	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils/log"
-	"github.com/tieubaoca/go-chat-server/utils/saasApi"
 
 	"github.com/golang-jwt/jwt"
 )
@@ -112,136 +103,6 @@ func JWTVerifyToken(tokenString string) (*jwt.Token, error) {
 
 func GetSessionIdFromToken(token *jwt.Token) string {
 	return token.Claims.(jwt.MapClaims)["sid"].(string)
-}
-
-func GetCitizen(token string) (map[string]interface{}, error) {
-	header := http.Header{}
-	header.Add(
-		"Authorization",
-		"Bearer "+token,
-	)
-	res, err := saasApi.Get(
-		os.Getenv("SAAS_HOST")+"/saas/api/v1/citizen/get-current-citizen",
-		header,
-		url.Values{},
-	)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-	}
-
-	var result map[string]interface{}
-	json.NewDecoder(res.Body).Decode(&result)
-	if res.StatusCode != 200 {
-		log.ErrorLogger.Println(result["message"])
-		return nil, errors.New("get citizen error, status: " + res.Status)
-	}
-	data := result["data"].(map[string]interface{})
-	return data, nil
-}
-
-func GetListFriendInfo(saasAccessToken string, paginationReq request.PaginationOnlineFriendReq) ([]interface{}, error) {
-
-	header := http.Header{}
-	header.Add(
-		"Authorization",
-		"Bearer "+saasAccessToken,
-	)
-	query := url.Values{
-		"page": []string{fmt.Sprint(paginationReq.Page)},
-		"size": []string{fmt.Sprint(paginationReq.Size)},
-	}
-
-	resp, err := saasApi.Get(
-		os.Getenv("SAAS_HOST")+"/saas/api/v1/friend/getListFriendInfo",
-		header,
-		query,
-	)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var resBody response.SaasResponse
-	json.NewDecoder(resp.Body).Decode(&resBody)
-	log.InfoLogger.Println(resBody)
-	data := resBody.Data.([]interface{})
-	return data, nil
-}
-
-func GetAllFriends(token string) ([]interface{}, error) {
-
-	header := http.Header{}
-	header.Add("Authorization", "Bearer "+token)
-	resp, err := saasApi.Post(
-		os.Getenv("SAAS_HOST")+"/saas/api/v1/friend/getListFriend",
-		nil,
-		header,
-		nil,
-	)
-
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var resBody response.SaasResponse
-	json.NewDecoder(resp.Body).Decode(&resBody)
-	log.InfoLogger.Println(resBody)
-	data := resBody.Data.([]interface{})
-	return data, nil
-}
-
-func GetSaIdFromToken(token string) (string, error) {
-	citizen, err := GetCitizen(token)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return "", err
-	}
-	return citizen["saId"].(string), nil
-}
-
-func GetSaasAccessToken(username string, password string) (string, string, error) {
-	resp, err := saasApi.Post(
-		"https://keycloak.summonersarena.io/realms/summonersarena/protocol/openid-connect/token",
-		ioutil.NopCloser(
-			strings.NewReader(
-				"username="+username+
-					"&password="+password+
-					"&grant_type=password&client_id="+os.Getenv("CLIENT_ID")+
-					"&client_secret="+os.Getenv("CLIENT_SECRET")+"")),
-		http.Header{
-			"Content-Type": []string{"application/x-www-form-urlencoded"},
-		},
-		nil,
-	)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return "", "", err
-	}
-	defer resp.Body.Close()
-	var body map[string]interface{}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return "", "", err
-	}
-	err = json.Unmarshal(bodyBytes, &body)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		return "", "", err
-	}
-	accessToken, ok := body["access_token"]
-	if !ok {
-		log.ErrorLogger.Println(types.ErrorInvalidInput)
-		return "", "", errors.New(types.ErrorInvalidInput)
-	}
-	refreshToken, ok := body["refresh_token"]
-	if !ok {
-		log.ErrorLogger.Println(types.ErrorInvalidInput)
-		return "", "", errors.New(types.ErrorInvalidInput)
-	}
-	return accessToken.(string), refreshToken.(string), nil
-
 }
 
 func GetMessageIds(messages []models.Message) []string {
