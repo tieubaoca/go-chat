@@ -11,6 +11,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	go.mongodb.org/mongo-driver v1.11.1
 	golang.org/x/sys v0.4.0
+	golang.org/x/time v0.3.0
 )
 
 require (

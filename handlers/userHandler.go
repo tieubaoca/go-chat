@@ -19,11 +19,16 @@ type UserHandler interface {
 
 type userHandler struct {
 	userService services.UserService
+	saasService services.SaasService
 }
 
-func NewUserHandler(userService services.UserService) *userHandler {
+func NewUserHandler(
+	userService services.UserService,
+	saasService services.SaasService,
+) *userHandler {
 	return &userHandler{
 		userService: userService,
+		saasService: saasService,
 	}
 }
 
@@ -44,7 +49,7 @@ func (h *userHandler) PaginationOnlineFriend(c *gin.Context) {
 		return
 	}
 
-	users, err := utils.GetListFriendInfo(tokenString, paginationReq)
+	users, err := h.saasService.GetListFriendInfo(tokenString, paginationReq)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(

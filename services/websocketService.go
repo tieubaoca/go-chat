@@ -185,10 +185,15 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 		SeenBy:     make([]models.Seen, 0),
 	}
 	result, err := s.messageRepository.InsertMessage(message)
+
 	message.Id = result.InsertedID.(primitive.ObjectID)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return
+	}
+	err = s.chatRoomRepository.UpdateChatRoomLastMessage(message.ChatRoom)
+	if err != nil {
+		log.ErrorLogger.Println(err)
 	}
 	citizenEmitted := make([]string, 0)
 	for _, member := range chatRoom.Members {

@@ -20,21 +20,24 @@ type MessageHandler interface {
 type messageHandler struct {
 	messageService  services.MessageService
 	chatRoomService services.ChatRoomService
+	saasService     services.SaasService
 }
 
 func NewMessageHandler(
 	messageService services.MessageService,
 	chatRoomService services.ChatRoomService,
+	saasService services.SaasService,
 ) *messageHandler {
 	return &messageHandler{
 		messageService:  messageService,
 		chatRoomService: chatRoomService,
+		saasService:     saasService,
 	}
 }
 
 func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 	chatRoomId := c.Param("chatRoomId")
-	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	saId, err := h.saasService.GetSaId(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -83,7 +86,7 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 			Data:    "",
 		})
 	}
-	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	saId, err := h.saasService.GetSaId(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{

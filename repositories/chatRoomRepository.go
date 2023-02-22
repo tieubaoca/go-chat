@@ -3,23 +3,27 @@ package repositories
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/tieubaoca/go-chat-server/models"
 	"github.com/tieubaoca/go-chat-server/utils/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ChatRoomRepository interface {
 	FindChatRoomById(chatRoomId string) (*models.ChatRoom, error)
 	FindChatRoomBySaId(saId string) ([]models.ChatRoom, error)
+	PaginationChatRoomBySaId(saId string, skip, limit int) ([]models.ChatRoom, error)
 	InsertChatRoom(chatRoom models.ChatRoom) (*mongo.InsertOneResult, error)
 	AddMembersToChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
 	RemoveMembersFromChatRoom(chatRoomId string, members []string) (*mongo.UpdateResult, error)
 	FindDMByMembers(members []string) (*models.ChatRoom, error)
 	FindGroupChatByMembers(members []string) ([]models.ChatRoom, error)
 	TransferOwner(chatRoomId, newOwner string) error
+	UpdateChatRoomLastMessage(chatRoomId string) error
 }
 
 type chatRoomRepository struct {
@@ -54,7 +58,8 @@ func (r *chatRoomRepository) FindChatRoomBySaId(saId string) ([]models.ChatRoom,
 		}
 	}()
 	coll := r.db.Collection(models.ChatRoomCollection)
-	cursor, err := coll.Find(context.TODO(), bson.D{{"members", saId}})
+	sortOption := options.Find().SetSort(bson.D{{"lastMessage", -1}})
+	cursor, err := coll.Find(context.TODO(), bson.D{{"members", saId}}, sortOption)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		return nil, err
@@ -140,6 +145,7 @@ func (r *chatRoomRepository) FindDMByMembers(saIds []string) (*models.ChatRoom, 
 			log.ErrorLogger.Println(err)
 		}
 	}()
+
 	coll := r.db.Collection(models.ChatRoomCollection)
 	var result models.ChatRoom
 	err := coll.FindOne(
@@ -165,6 +171,7 @@ func (r *chatRoomRepository) FindGroupChatByMembers(members []string) ([]models.
 		}
 	}()
 	coll := r.db.Collection(models.ChatRoomCollection)
+	sortOption := options.Find().SetSort(bson.D{{"lastMessage", -1}})
 	var result []models.ChatRoom
 	cursor, err := coll.Find(
 		context.TODO(),
@@ -177,6 +184,7 @@ func (r *chatRoomRepository) FindGroupChatByMembers(members []string) ([]models.
 			},
 			{"type", models.ChatRoomTypeGroup},
 		},
+		sortOption,
 	)
 	if err != nil {
 		log.ErrorLogger.Println(err)
@@ -206,4 +214,60 @@ func (r *chatRoomRepository) TransferOwner(chatRoomId, newOwner string) error {
 	)
 
 	return result.Err()
+}
+
+func (r *chatRoomRepository) UpdateChatRoomLastMessage(chatRoomId string) error {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	coll := r.db.Collection(models.ChatRoomCollection)
+	objId, err := primitive.ObjectIDFromHex(chatRoomId)
+	if err != nil {
+		return err
+	}
+	return coll.FindOneAndUpdate(
+		context.TODO(),
+		bson.M{
+			"_id": objId,
+		},
+		bson.M{
+			"$set": bson.M{
+				"lastMessage": primitive.NewDateTimeFromTime(time.Now()),
+			},
+		},
+	).Err()
+}
+
+func (r *chatRoomRepository) PaginationChatRoomBySaId(saId string, skip, limit int) ([]models.ChatRoom, error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+
+	coll := r.db.Collection(models.ChatRoomCollection)
+	var result []models.ChatRoom
+	option := options.Find().SetSort(bson.M{"lastMessage": -1}).SetSkip(int64(skip)).SetLimit(int64(limit))
+	cursor, err := coll.Find(
+		context.TODO(),
+		bson.M{
+			"members": bson.M{
+				"$elemMatch": bson.M{
+					"$eq": saId,
+				},
+			},
+		},
+		option,
+	)
+	if err != nil {
+		log.ErrorLogger.Println(err)
+		return result, err
+	}
+	err = cursor.All(context.TODO(), &result)
+	return result, err
+
 }

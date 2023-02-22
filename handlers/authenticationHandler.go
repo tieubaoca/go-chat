@@ -21,11 +21,16 @@ type AuthenticationHandler interface {
 
 type authenticationHandler struct {
 	websocketService services.WebSocketService
+	saasService      services.SaasService
 }
 
-func NewAuthenticationHandler(websocketService services.WebSocketService) *authenticationHandler {
+func NewAuthenticationHandler(
+	websocketService services.WebSocketService,
+	saasService services.SaasService,
+) *authenticationHandler {
 	return &authenticationHandler{
 		websocketService: websocketService,
+		saasService:      saasService,
 	}
 }
 
@@ -49,7 +54,7 @@ func (h *authenticationHandler) Login(c *gin.Context) {
 		})
 		return
 	}
-	accessToken, refreshToken, err := utils.GetSaasAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
+	accessToken, refreshToken, err := h.saasService.GetSaasAccessToken(getAccTokenReq.Username, getAccTokenReq.Password)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
@@ -118,7 +123,7 @@ func (h *authenticationHandler) Logout(c *gin.Context) {
 		false,
 		true,
 	)
-	saId, err := utils.GetSaIdFromToken(utils.GetAccessTokenByReq(c.Request))
+	saId, err := h.saasService.GetSaId(utils.GetAccessTokenByReq(c.Request))
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{
