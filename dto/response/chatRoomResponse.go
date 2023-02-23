@@ -11,6 +11,6 @@ type ChatRoomResponse struct {
 	Type        models.ChatRoomType `json:"type" bson:"type"`
 	Name        string              `json:"name" bson:"name"`
 	Members     []models.Citizen    `json:"members" bson:"members"`
-	LastMessage primitive.DateTime  `json:"lastMessage" bson:"lastMessage"`
+	LastMessage models.Message      `json:"lastMessage" bson:"lastMessage"`
 	IsBlocked   bool                `json:"isBlocked" bson:"isBlocked"`
 }

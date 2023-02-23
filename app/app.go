@@ -138,6 +138,8 @@ func Start() {
 		message.POST("/pagination", messageHandler.PaginationMessagesByChatRoomId)
 	}
 
+	r.POST("/saas/api/switch-citizen", websocketHandler.SwitchCitizen).Use(middleware.WhitelistIPsMiddleware())
+
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))
 	port := os.Getenv("SERVER_PORT")
 	log.InfoLogger.Println("Server start on " + port)

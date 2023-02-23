@@ -23,6 +23,7 @@ type WebSocketService interface {
 	HandleWebSocket(w http.ResponseWriter, r *http.Request, saId string)
 	HandleEpoll()
 	Logout(saId string)
+	SwitchCitizen(switchCitizenReq request.SwitchCitizenReq) error
 }
 
 type webSocketService struct {
@@ -191,7 +192,7 @@ func (s *webSocketService) handleMessage(event response.WebSocketEvent) {
 		log.ErrorLogger.Println(err)
 		return
 	}
-	err = s.chatRoomRepository.UpdateChatRoomLastMessage(message.ChatRoom)
+	err = s.chatRoomRepository.UpdateChatRoomLastMessage(message)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 	}
@@ -301,4 +302,29 @@ func (s *webSocketService) Logout(saId string) {
 			delete(s.wsClients, fd)
 		}
 	}
+}
+
+func (s *webSocketService) SwitchCitizen(req request.SwitchCitizenReq) error {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+
+	for _, fd := range s.wsFd[req.CurrentCitizenId] {
+		s.wsClients[fd].Conn.WriteJSON(
+			response.WebSocketEvent{
+				Sender:       "server",
+				EventType:    types.WebsocketEventTypeSwitchCitizen,
+				EventPayload: req,
+			},
+		)
+	}
+	defer func() {
+		s.Logout(req.CurrentCitizenId)
+		delete(s.wsFd, req.CurrentCitizenId)
+	}()
+
+	return nil
 }

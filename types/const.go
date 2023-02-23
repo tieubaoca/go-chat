@@ -5,8 +5,9 @@ const (
 	StatusSuccess = "success"
 	StatusError   = "error"
 	// Websocket
-	WebsocketEventTypeMessage = "Message"
-	WebSocketEventTypeTyping  = "Typing"
-	WebsocketEventTypeError   = "Error"
-	WebSocketEventTypeSuccess = "Success"
+	WebsocketEventTypeMessage       = "Message"
+	WebSocketEventTypeTyping        = "Typing"
+	WebsocketEventTypeError         = "Error"
+	WebSocketEventTypeSuccess       = "Success"
+	WebsocketEventTypeSwitchCitizen = "SwitchCitizen"
 )

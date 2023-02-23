@@ -1,4 +1,4 @@
-package saasApi
+package httpHelper
 
 import (
 	"io"

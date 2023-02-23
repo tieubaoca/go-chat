@@ -18,6 +18,6 @@ type ChatRoom struct {
 	Type        ChatRoomType       `json:"type" bson:"type"`
 	Name        string             `json:"name" bson:"name"`
 	Members     []string           `json:"members" bson:"members"`
-	LastMessage primitive.DateTime `json:"lastMessage" bson:"lastMessage"`
+	LastMessage Message            `json:"lastMessage" bson:"lastMessage"`
 	IsBlocked   bool               `json:"isBlocked" bson:"isBlocked"`
 }

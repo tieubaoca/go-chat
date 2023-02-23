@@ -13,8 +13,8 @@ import (
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/dto/response"
 	"github.com/tieubaoca/go-chat-server/types"
+	"github.com/tieubaoca/go-chat-server/utils/httpHelper"
 	"github.com/tieubaoca/go-chat-server/utils/log"
-	"github.com/tieubaoca/go-chat-server/utils/saasApi"
 )
 
 type SaasService interface {
@@ -32,7 +32,7 @@ func NewSaasService() *saasService {
 }
 
 func (s *saasService) GetSaasAccessToken(username string, password string) (string, string, error) {
-	resp, err := saasApi.Post(
+	resp, err := httpHelper.Post(
 		"https://keycloak.summonersarena.io/realms/summonersarena/protocol/openid-connect/token",
 		ioutil.NopCloser(
 			strings.NewReader(
@@ -80,7 +80,7 @@ func (s *saasService) GetCitizen(token string) (map[string]interface{}, error) {
 		"Authorization",
 		"Bearer "+token,
 	)
-	res, err := saasApi.Get(
+	res, err := httpHelper.Get(
 		os.Getenv("SAAS_HOST")+"/saas/api/v1/citizen/get-current-citizen",
 		header,
 		url.Values{},
@@ -110,7 +110,7 @@ func (s *saasService) GetListFriendInfo(saasAccessToken string, paginationReq re
 		"size": []string{fmt.Sprint(paginationReq.Size)},
 	}
 
-	resp, err := saasApi.Get(
+	resp, err := httpHelper.Get(
 		os.Getenv("SAAS_HOST")+"/saas/api/v1/friend/getListFriendInfo",
 		header,
 		query,
@@ -130,7 +130,7 @@ func (s *saasService) GetListFriendInfo(saasAccessToken string, paginationReq re
 func (s *saasService) GetAllFriends(token string) ([]interface{}, error) {
 	header := http.Header{}
 	header.Add("Authorization", "Bearer "+token)
-	resp, err := saasApi.Post(
+	resp, err := httpHelper.Post(
 		os.Getenv("SAAS_HOST")+"/saas/api/v1/friend/getListFriend",
 		nil,
 		header,
