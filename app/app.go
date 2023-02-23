@@ -138,7 +138,9 @@ func Start() {
 		message.POST("/pagination", messageHandler.PaginationMessagesByChatRoomId)
 	}
 
-	r.POST("/saas/api/switch-citizen", websocketHandler.SwitchCitizen).Use(middleware.WhitelistIPsMiddleware())
+	switchCitizen := r.Group("/saas/api/switch-citizen")
+	switchCitizen.Use(middleware.WhitelistIPsMiddleware())
+	switchCitizen.POST("/", websocketHandler.SwitchCitizen)
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))
 	port := os.Getenv("SERVER_PORT")
