@@ -70,6 +70,7 @@ func Start() {
 	)
 	messageService := services.NewMessageService(
 		messageRepository,
+		chatRoomRepository,
 	)
 
 	websocketService := services.NewWebSocketService(

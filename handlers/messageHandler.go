@@ -47,16 +47,6 @@ func (h *messageHandler) FindMessagesByChatRoomId(c *gin.Context) {
 		})
 		return
 	}
-	_, err = h.chatRoomService.FindChatRoomById(saId, chatRoomId)
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusInternalServerError, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
 
 	messages, err := h.messageService.FindMessagesByChatRoomId(saId, chatRoomId)
 	if err != nil {
@@ -87,16 +77,6 @@ func (h *messageHandler) PaginationMessagesByChatRoomId(c *gin.Context) {
 		})
 	}
 	saId, err := h.saasService.GetSaId(utils.GetAccessTokenByReq(c.Request))
-	if err != nil {
-		log.ErrorLogger.Println(err)
-		c.JSON(http.StatusInternalServerError, response.ResponseData{
-			Status:  types.StatusError,
-			Message: err.Error(),
-			Data:    "",
-		})
-		return
-	}
-	_, err = h.chatRoomService.FindChatRoomById(saId, pagination.ChatRoomId)
 	if err != nil {
 		log.ErrorLogger.Println(err)
 		c.JSON(http.StatusInternalServerError, response.ResponseData{

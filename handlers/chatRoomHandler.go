@@ -52,6 +52,7 @@ func (h *chatRoomHandler) FindChatRoomById(c *gin.Context) {
 		})
 		return
 	}
+	log.InfoLogger.Println("saId: ", saId)
 	chatRoom, err := h.chatRoomService.FindChatRoomById(
 		saId,
 		id,

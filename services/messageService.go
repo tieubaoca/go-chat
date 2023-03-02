@@ -1,8 +1,11 @@
 package services
 
 import (
+	"errors"
+
 	"github.com/tieubaoca/go-chat-server/dto/request"
 	"github.com/tieubaoca/go-chat-server/repositories"
+	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
 
 	"github.com/tieubaoca/go-chat-server/models"
@@ -18,18 +21,24 @@ type MessageService interface {
 }
 
 type messageService struct {
-	messageRepository repositories.MessageRepository
+	messageRepository  repositories.MessageRepository
+	chatRoomRepository repositories.ChatRoomRepository
 }
 
 func NewMessageService(
 	messageRepository repositories.MessageRepository,
+	chatRoomRepository repositories.ChatRoomRepository,
 ) MessageService {
 	return &messageService{
 		messageRepository,
+		chatRoomRepository,
 	}
 }
 
 func (s *messageService) FindMessagesByChatRoomId(requester, chatRoomId string) ([]models.Message, error) {
+	if !s.isRoomMember(requester, chatRoomId) {
+		return nil, errors.New(types.ErrorNotRoomMember)
+	}
 	messages, err := s.messageRepository.FindMessagesByChatRoomId(chatRoomId)
 	if err != nil {
 		return nil, err
@@ -50,6 +59,9 @@ func (s *messageService) InsertMessage(message models.Message) (*mongo.InsertOne
 }
 
 func (s *messageService) PaginationMessagesByChatRoomId(requester string, req request.MessagePaginationReq) ([]models.Message, error) {
+	if !s.isRoomMember(requester, req.ChatRoomId) {
+		return nil, errors.New(types.ErrorNotRoomMember)
+	}
 	messages, err := s.messageRepository.PaginationMessagesByChatRoomId(req.ChatRoomId, req.Limit, req.Skip)
 	if err != nil {
 		return nil, err
@@ -69,6 +81,14 @@ func (s *messageService) UpdateMessageReceivedStatus(messageId []string, saId st
 
 func (s *messageService) UpdateMessageSeenStatus(messageId []string, saId string) error {
 	return s.messageRepository.UpdateMessageSeenStatus(messageId, saId)
+}
+
+func (s *messageService) isRoomMember(saId, chatRoomId string) bool {
+	chatRoom, err := s.chatRoomRepository.FindChatRoomById(chatRoomId)
+	if err != nil {
+		return false
+	}
+	return utils.ContainsString(chatRoom.Members, saId)
 }
 
 // func (s *messageService) updateSeen(requester string, messageIds []string) error {

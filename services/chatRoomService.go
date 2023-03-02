@@ -8,6 +8,7 @@ import (
 	"github.com/tieubaoca/go-chat-server/repositories"
 	"github.com/tieubaoca/go-chat-server/types"
 	"github.com/tieubaoca/go-chat-server/utils"
+	"github.com/tieubaoca/go-chat-server/utils/log"
 
 	"github.com/tieubaoca/go-chat-server/models"
 )
@@ -49,9 +50,11 @@ func (s *chatRoomService) FindChatRoomById(requester, chatRoomId string) (*respo
 	if err != nil {
 		return nil, err
 	}
+	log.InfoLogger.Println(chatRoom)
 	if !utils.ContainsString(chatRoom.Members, requester) {
 		return nil, errors.New(types.ErrorNotRoomMember)
 	}
+
 	return s.convertToChatRoomResponse(chatRoom)
 }
 
