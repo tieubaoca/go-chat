@@ -2,13 +2,11 @@ package app
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/tieubaoca/go-chat-server/db"
 	"github.com/tieubaoca/go-chat-server/handlers"
 	"github.com/tieubaoca/go-chat-server/middleware"
@@ -20,22 +18,11 @@ import (
 
 var database *mongo.Database
 
-func init() {
-	log.InfoLogger.Println("Starting app")
-
-	file, err := os.OpenFile("logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		os.Exit(1)
-	}
-	log.New(io.MultiWriter(os.Stdout, file))
-	gin.DefaultWriter = io.MultiWriter(os.Stdout, file)
-	if godotenv.Load() != nil {
-		log.FatalLogger.Fatal("Error loading .env file")
-	}
+type App struct {
+	Router *gin.Engine
 }
 
-func Start() {
-
+func NewApp() *App {
 	database = db.NewDbClient(
 		os.Getenv("MONGO_CONNECTION_STRING"),
 		os.Getenv("MONGO_DB"),
@@ -142,11 +129,29 @@ func Start() {
 	switchCitizen := r.Group("/saas/api/switch-citizen")
 	switchCitizen.Use(middleware.WhitelistIPsMiddleware())
 	switchCitizen.POST("/", websocketHandler.SwitchCitizen)
+	return &App{Router: r}
+}
+
+func (a *App) Run() {
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = "8888"
+	}
+	log.InfoLogger.Println("Server start on " + port)
+	log.FatalLogger.Fatal(http.ListenAndServe(":"+port, a.Router))
+
+	defer database.Client().Disconnect(context.TODO())
+}
+
+func (a *App) RunTLS() {
 
 	// r.GET("/").Handler(http.FileServer(http.Dir("./public")))
 	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = "8888"
+	}
 	log.InfoLogger.Println("Server start on " + port)
-	log.FatalLogger.Fatal(http.ListenAndServe(":"+port, r))
+	log.FatalLogger.Fatal(http.ListenAndServeTLS(":"+port, "./cert.pem", "./key.pem", a.Router))
 
 	defer database.Client().Disconnect(context.TODO())
 }
