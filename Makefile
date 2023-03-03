@@ -3,4 +3,4 @@ docker-run-dev:
 	docker build -t saas-message:dev .
 	docker stop saas-message-dev || true
 	docker rm saas-message-dev || true
-	docker run -d --rm -p 8888:8888 --name saas-message-dev saas-message:dev
+	docker run -d --rm -p 8888:8888 -e PRODUCTION=false --name saas-message-dev saas-message:dev
