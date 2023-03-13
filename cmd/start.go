@@ -26,6 +26,8 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tls, _ := cmd.Flags().GetBool("security")
+		port, _ := cmd.Flags().GetString("port")
+		os.Setenv("SERVER_PORT", port)
 		app := app.NewApp()
 		if tls {
 			app.RunTLS()
@@ -40,6 +42,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 
 	startCmd.PersistentFlags().BoolP("security", "s", false, "Run with TLS")
+	startCmd.PersistentFlags().StringP("port", "p", "8888", "Port to run the server")
 
 	log.InfoLogger.Println("Starting app")
 

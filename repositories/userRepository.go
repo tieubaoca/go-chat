@@ -74,6 +74,7 @@ func (r *userRepository) UpdateUserStatus(saId string, isActive bool, lastSeen p
 		}
 	}()
 	coll := r.db.Collection(models.UserOnlineStatusCollection)
+	log.InfoLogger.Println("UpdateUserStatus", saId, isActive, lastSeen)
 	userStatus, _ := r.FindUserStatusBySaId(saId)
 	if userStatus.SaId == "" {
 		_, err := coll.InsertOne(context.TODO(), bson.M{

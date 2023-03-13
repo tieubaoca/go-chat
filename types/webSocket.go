@@ -4,6 +4,7 @@ import (
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/tieubaoca/go-chat-server/dto/response"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
@@ -32,4 +33,10 @@ func (wsc *WebSocketClient) Read() (response.WebSocketEvent, error) {
 	msg.Sender = wsc.SaId
 	msg.Client = wsc.Conn
 	return msg, err
+}
+
+type OnlineStatusEvent struct {
+	SaId     string             `json:"saId"`
+	IsActive bool               `json:"isActive"`
+	LastSeen primitive.DateTime `json:"lastSeen"`
 }

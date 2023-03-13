@@ -27,13 +27,15 @@ type WebSocketService interface {
 }
 
 type webSocketService struct {
-	chatRoomRepository repositories.ChatRoomRepository
-	messageRepository  repositories.MessageRepository
-	userRepository     repositories.UserRepository
-	epoll              *types.Epoll
-	wsFd               map[string][]int
-	wsClients          map[int]*types.WebSocketClient
-	upgrader           websocket.Upgrader
+	chatRoomRepository   repositories.ChatRoomRepository
+	messageRepository    repositories.MessageRepository
+	userRepository       repositories.UserRepository
+	saasFriendRepository repositories.SaasFriendRepository
+	epoll                *types.Epoll
+	wsFd                 map[string][]int
+	wsClients            map[int]*types.WebSocketClient
+	upgrader             websocket.Upgrader
+	updateOnlineStatusCh chan *types.OnlineStatusEvent
 }
 
 // / InitWebSocket initializes the websocket server
@@ -41,6 +43,7 @@ func NewWebSocketService(
 	chatRoomRepository repositories.ChatRoomRepository,
 	messageRepository repositories.MessageRepository,
 	userRepository repositories.UserRepository,
+	saasFriendRepository repositories.SaasFriendRepository,
 
 ) *webSocketService {
 	// Increase the maximum number of open files
@@ -57,19 +60,22 @@ func NewWebSocketService(
 		panic(err)
 	}
 	wsService := &webSocketService{
-		chatRoomRepository: chatRoomRepository,
-		messageRepository:  messageRepository,
-		userRepository:     userRepository,
-		epoll:              epoll,
-		wsFd:               make(map[string][]int),
-		wsClients:          make(map[int]*types.WebSocketClient),
+		chatRoomRepository:   chatRoomRepository,
+		messageRepository:    messageRepository,
+		userRepository:       userRepository,
+		saasFriendRepository: saasFriendRepository,
+		epoll:                epoll,
+		wsFd:                 make(map[string][]int),
+		wsClients:            make(map[int]*types.WebSocketClient),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
 		},
+		updateOnlineStatusCh: make(chan *types.OnlineStatusEvent),
 	}
 	go wsService.HandleEpoll()
+	go wsService.handleUpdateOnlineStatus()
 	return wsService
 }
 
@@ -97,7 +103,14 @@ func (s *webSocketService) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		log.ErrorLogger.Println(err)
 		return
 	}
-	s.userRepository.UpdateUserStatus(saId, true, primitive.NewDateTimeFromTime(time.Now()))
+	updateUserOnline := &types.OnlineStatusEvent{
+		SaId:     saId,
+		IsActive: true,
+		LastSeen: primitive.NewDateTimeFromTime(time.Now()),
+	}
+
+	s.updateOnlineStatusCh <- updateUserOnline
+
 	if _, ok := s.wsFd[saId]; !ok {
 		s.wsFd[saId] = make([]int, 0)
 	}
@@ -133,7 +146,13 @@ func (s *webSocketService) HandleEpoll() {
 				delete(s.wsClients, fd)
 				s.wsFd[client.SaId] = utils.ArrayIntRemoveElement(s.wsFd[client.SaId], fd)
 				if len(s.wsFd[client.SaId]) == 0 {
-					s.userRepository.UpdateUserStatus(client.SaId, false, primitive.NewDateTimeFromTime(time.Now()))
+					updateUserOnline := &types.OnlineStatusEvent{
+						SaId:     client.SaId,
+						IsActive: false,
+						LastSeen: primitive.NewDateTimeFromTime(time.Now()),
+					}
+					s.updateOnlineStatusCh <- updateUserOnline
+					delete(s.wsFd, client.SaId)
 				}
 				continue
 			}
@@ -327,4 +346,37 @@ func (s *webSocketService) SwitchCitizen(req request.SwitchCitizenReq) error {
 	}()
 
 	return nil
+}
+
+func (s *webSocketService) handleUpdateOnlineStatus() {
+	defer func() {
+		err := recover()
+		if err != nil {
+			log.ErrorLogger.Println(err)
+		}
+	}()
+	for e := range s.updateOnlineStatusCh {
+		s.userRepository.UpdateUserStatus(
+			e.SaId,
+			e.IsActive,
+			e.LastSeen,
+		)
+
+		friendList, err := s.saasFriendRepository.FindAllBySaId(e.SaId)
+		if err != nil {
+			log.ErrorLogger.Println(err)
+			continue
+		}
+		for _, friend := range friendList {
+			for _, fd := range s.wsFd[friend.SaIdFriend] {
+				s.wsClients[fd].Conn.WriteJSON(
+					response.WebSocketEvent{
+						Sender:       "server",
+						EventType:    types.WebsocketEventTypeUpdateOnlineStatus,
+						EventPayload: e,
+					},
+				)
+			}
+		}
+	}
 }

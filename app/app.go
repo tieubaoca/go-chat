@@ -37,6 +37,10 @@ func NewApp() *App {
 		saasDb,
 	)
 
+	saasFriendRepository := repositories.NewSaasFriendRepository(
+		saasDb,
+	)
+
 	userRepository := repositories.NewUserRepository(
 		database,
 	)
@@ -64,6 +68,7 @@ func NewApp() *App {
 		chatRoomRepository,
 		messageRepository,
 		userRepository,
+		saasFriendRepository,
 	)
 
 	saasService := services.NewSaasService()
