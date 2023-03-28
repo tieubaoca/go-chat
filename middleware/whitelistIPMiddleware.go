@@ -26,6 +26,10 @@ func WhitelistIPsMiddleware() gin.HandlerFunc {
 
 		// Check if client IP is in whitelist
 		for _, ip := range whitelistIPs {
+			if ip == "0.0.0.0" {
+				c.Next()
+				return
+			}
 			if ip == clientIP {
 				// Client IP is in whitelist, continue processing request
 				c.Next()
